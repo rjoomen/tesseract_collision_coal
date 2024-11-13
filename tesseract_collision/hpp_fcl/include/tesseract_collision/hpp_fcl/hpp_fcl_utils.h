@@ -44,7 +44,7 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <hpp/fcl/broadphase/broadphase_dynamic_AABB_tree-inl.h>
+#include <hpp/fcl/broadphase/broadphase_collision_manager.h>
 #include <hpp/fcl/collision.h>
 #include <hpp/fcl/distance.h>
 #include <memory>
@@ -62,7 +62,7 @@ using CollisionObjectPtr = std::shared_ptr<HPP_FCLCollisionObjectWrapper>;
 using CollisionObjectRawPtr = hpp::fcl::CollisionObject*;
 using CollisionObjectConstPtr = std::shared_ptr<const hpp::fcl::CollisionObject>;
 
-enum CollisionFilterGroups
+enum CollisionFilterGroups : std::int8_t
 {
   DefaultFilter = 1,
   StaticFilter = 2,
@@ -115,10 +115,10 @@ public:
     world_pose_ = pose;
     for (unsigned i = 0; i < collision_objects_.size(); ++i)
     {
-      CollisionObjectPtr& co = collision_objects_[i];
+      const CollisionObjectPtr& co = collision_objects_[i];
       auto tf = pose * shape_poses_[i];
       co->setTransform(hpp::fcl::Transform3f(tf.rotation(), tf.translation()));
-      co->updateAABB();  // This a tesseract function that updates abb to take into account contact distance
+      co->updateAABB();  // This a tesseract function that updates the aabb to take into account contact distance
     }
   }
 
@@ -232,12 +232,12 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
     {
-      std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
+      const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
       // This link was dynamic but is now static
-      for (auto& co : objects)
+      for (const auto& co : objects)
         dynamic_manager->unregisterObject(co.get());
 
-      for (auto& co : objects)
+      for (const auto& co : objects)
         static_manager->registerObject(co.get());
     }
     cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
@@ -246,12 +246,12 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
     {
-      std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
+      const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
       // This link was static but is now dynamic
-      for (auto& co : objects)
+      for (const auto& co : objects)
         static_manager->unregisterObject(co.get());
 
-      for (auto& co : objects)
+      for (const auto& co : objects)
         dynamic_manager->registerObject(co.get());
     }
     cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
@@ -276,12 +276,14 @@ struct CollisionCallback : hpp::fcl::CollisionCallBackBase
 {
   ContactTestData* cdata{};
   bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
+  virtual ~CollisionCallback() = default;
 };
 
 struct DistanceCollisionCallback : hpp::fcl::CollisionCallBackBase
 {
   ContactTestData* cdata{};
   bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
+  virtual ~DistanceCollisionCallback() = default;
 };
 #pragma GCC diagnostic pop
 

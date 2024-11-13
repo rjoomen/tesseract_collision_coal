@@ -39,6 +39,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <hpp/fcl/broadphase/broadphase_dynamic_AABB_tree.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
+
 #include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
 
 namespace tesseract_collision::tesseract_collision_hpp_fcl
@@ -78,7 +83,7 @@ bool HPP_FCLDiscreteBVHManager::addCollisionObject(const std::string& name,
   if (link2cow_.find(name) != link2cow_.end())
     removeCollisionObject(name);
 
-  COW::Ptr new_cow = createFCLCollisionObject(name, mask_id, shapes, shape_poses, enabled);
+  const COW::Ptr new_cow = createFCLCollisionObject(name, mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -113,7 +118,7 @@ bool HPP_FCLDiscreteBVHManager::removeCollisionObject(const std::string& name)
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
+    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     fcl_co_count_ -= objects.size();
 
     std::vector<hpp::fcl::CollisionObject*> static_objs;
@@ -124,7 +129,7 @@ bool HPP_FCLDiscreteBVHManager::removeCollisionObject(const std::string& name)
 
     // Must check if object exists in the manager before calling unregister.
     // If it does not exist and unregister is called it is undefined behavior
-    for (auto& co : objects)
+    for (const auto& co : objects)
     {
       auto static_it = std::find(static_objs.begin(), static_objs.end(), co.get());
       if (static_it != static_objs.end())
@@ -345,23 +350,23 @@ void HPP_FCLDiscreteBVHManager::contactTest(ContactResultMap& collisions, const 
 
 void HPP_FCLDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
-  std::size_t cnt = cow->getCollisionObjectsRaw().size();
+  const std::size_t cnt = cow->getCollisionObjectsRaw().size();
   fcl_co_count_ += cnt;
   static_update_.reserve(fcl_co_count_);
   dynamic_update_.reserve(fcl_co_count_);
   link2cow_[cow->getName()] = cow;
   collision_objects_.push_back(cow->getName());
 
-  std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
+  const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
   {
     // If static add to static manager
-    for (auto& co : objects)
+    for (const auto& co : objects)
       static_manager_->registerObject(co.get());
   }
   else
   {
-    for (auto& co : objects)
+    for (const auto& co : objects)
       dynamic_manager_->registerObject(co.get());
   }
 

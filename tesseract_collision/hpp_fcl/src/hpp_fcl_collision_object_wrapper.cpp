@@ -41,14 +41,14 @@ void HPP_FCLCollisionObjectWrapper::updateAABB()
   if (t.rotation().isIdentity())
   {
     aabb = translate(cgeom->aabb_local, t.translation());
-    hpp::fcl::Vec3f delta = hpp::fcl::Vec3f::Constant(contact_distance_);
+    const hpp::fcl::Vec3f delta = hpp::fcl::Vec3f::Constant(contact_distance_);
     aabb.min_ -= delta;
     aabb.max_ += delta;
   }
   else
   {
-    hpp::fcl::Vec3f center = (t * cgeom->aabb_center).translation();
-    hpp::fcl::Vec3f delta = hpp::fcl::Vec3f::Constant(cgeom->aabb_radius + contact_distance_);
+    const hpp::fcl::Vec3f center = (t * cgeom->aabb_center).translation();
+    const hpp::fcl::Vec3f delta = hpp::fcl::Vec3f::Constant(cgeom->aabb_radius + contact_distance_);
     aabb.min_ = center - delta;
     aabb.max_ = center + delta;
   }

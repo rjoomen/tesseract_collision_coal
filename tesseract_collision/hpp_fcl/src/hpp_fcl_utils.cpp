@@ -54,6 +54,9 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_hpp_fcl
 {
+
+namespace
+{
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Plane::ConstPtr& geom)
 {
   return std::make_shared<hpp::fcl::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
@@ -86,8 +89,8 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Capsule::Con
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstPtr& geom)
 {
-  int vertex_count = geom->getVertexCount();
-  int triangle_count = geom->getFaceCount();
+  const int vertex_count = geom->getVertexCount();
+  const int triangle_count = geom->getFaceCount();
   const tesseract_common::VectorVector3d& vertices = *(geom->getVertices());
   const Eigen::VectorXi& triangles = *(geom->getFaces());
 
@@ -116,8 +119,8 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::ConstPtr& geom)
 {
-  int vertex_count = geom->getVertexCount();
-  int triangle_count = geom->getFaceCount();
+  const int vertex_count = geom->getVertexCount();
+  const int triangle_count = geom->getFaceCount();
   const Eigen::VectorXi& triangles = *(geom->getFaces());
 
   if (vertex_count > 0 && triangle_count > 0)
@@ -162,6 +165,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Octree::Cons
     }
   }
 }
+}  // namespace
 
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 {
@@ -224,10 +228,10 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
   const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
 
-  bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
-                         (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
-                         (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
-                         !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
+  const bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
+                               (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
+                               (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
+                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
 
   assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
          std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
@@ -251,8 +255,6 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   {
     const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
     const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
-    Eigen::Isometry3d tf1_inv = tf1.inverse();
-    Eigen::Isometry3d tf2_inv = tf2.inverse();
 
     for (size_t i = 0; i < col_result.numContacts(); ++i)
     {
@@ -260,14 +262,14 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
       ContactResult contact;
       contact.link_names[0] = cd1->getName();
       contact.link_names[1] = cd2->getName();
-      contact.shape_id[0] = static_cast<int>(cd1->getShapeIndex(o1));
-      contact.shape_id[1] = static_cast<int>(cd2->getShapeIndex(o2));
+      contact.shape_id[0] = cd1->getShapeIndex(o1);
+      contact.shape_id[1] = cd2->getShapeIndex(o2);
       contact.subshape_id[0] = static_cast<int>(fcl_contact.b1);
       contact.subshape_id[1] = static_cast<int>(fcl_contact.b2);
       contact.nearest_points[0] = fcl_contact.pos;
       contact.nearest_points[1] = fcl_contact.pos;
-      contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
-      contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
+      contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
+      contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
       contact.transform[0] = tf1;
       contact.transform[1] = tf2;
       contact.type_id[0] = cd1->getTypeID();
@@ -275,9 +277,9 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
       contact.distance = -1.0 * fcl_contact.penetration_depth;
       contact.normal = fcl_contact.normal;
 
-      ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
+      const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
       const auto it = cdata->res->find(pc);
-      bool found = (it != cdata->res->end() && !it->second.empty());
+      const bool found = (it != cdata->res->end() && !it->second.empty());
 
       processResult(*cdata, contact, pc, found);
     }
@@ -294,10 +296,10 @@ bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl:
   const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
   const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
 
-  bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
-                         (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
-                         (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
-                         !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
+  const bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
+                               (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
+                               (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
+                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
 
   assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
          std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
@@ -308,37 +310,36 @@ bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl:
   hpp::fcl::DistanceResult fcl_result;
   hpp::fcl::DistanceRequest fcl_request(true);
   fcl_request.gjk_variant = hpp::fcl::GJKVariant::NesterovAcceleration;
-  double d = hpp::fcl::distance(o1, o2, fcl_request, fcl_result);
+  const double d = hpp::fcl::distance(o1, o2, fcl_request, fcl_result);
 
   if (d < cdata->collision_margin_data.getMaxCollisionMargin())
   {
     const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
     const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
-    Eigen::Isometry3d tf1_inv = tf1.inverse();
-    Eigen::Isometry3d tf2_inv = tf2.inverse();
 
     ContactResult contact;
     contact.link_names[0] = cd1->getName();
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = cd1->getShapeIndex(o1);
     contact.shape_id[1] = cd2->getShapeIndex(o2);
-    contact.subshape_id[0] = static_cast<int>(fcl_result.b1);
-    contact.subshape_id[1] = static_cast<int>(fcl_result.b2);
+    contact.subshape_id[0] = fcl_result.b1;
+    contact.subshape_id[1] = fcl_result.b2;
     contact.nearest_points[0] = fcl_result.nearest_points[0];
     contact.nearest_points[1] = fcl_result.nearest_points[1];
-    contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
-    contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
+    contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
+    contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
     contact.transform[0] = tf1;
     contact.transform[1] = tf2;
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
     contact.distance = fcl_result.min_distance;
-    // contact.normal = (fcl_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
+    // contact.normal = (fcl_result.min_distance * (contact.nearest_points[1] -
+    // contact.nearest_points[0])).normalized();
     contact.normal = fcl_result.normal;
 
-    ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
+    const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
     const auto it = cdata->res->find(pc);
-    bool found = (it != cdata->res->end() && !it->second.empty());
+    const bool found = (it != cdata->res->end() && !it->second.empty());
 
     processResult(*cdata, contact, pc, found);
   }
@@ -370,7 +371,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
       const auto& meshes = std::static_pointer_cast<const tesseract_geometry::CompoundMesh>(shapes_[i])->getMeshes();
       for (const auto& mesh : meshes)
       {
-        CollisionGeometryPtr subshape = createShapePrimitive(mesh);
+        const CollisionGeometryPtr subshape = createShapePrimitive(mesh);
         if (subshape != nullptr)
         {
           collision_geometries_.push_back(subshape);
@@ -385,7 +386,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
     }
     else
     {
-      CollisionGeometryPtr subshape = createShapePrimitive(shapes_[i]);
+      const CollisionGeometryPtr subshape = createShapePrimitive(shapes_[i]);
       if (subshape != nullptr)
       {
         collision_geometries_.push_back(subshape);
