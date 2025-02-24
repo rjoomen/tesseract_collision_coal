@@ -117,31 +117,40 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
   return nullptr;
 }
 
+// Coal polygon type
+struct Polygon : Eigen::VectorXi
+{
+  using index_type = std::size_t;
+  using size_type = int;
+};
+
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::ConstPtr& geom)
 {
-  const int vertex_count = geom->getVertexCount();
-  const int triangle_count = geom->getFaceCount();
-  const Eigen::VectorXi& triangles = *(geom->getFaces());
+  const auto vertex_count = geom->getVertexCount();
+  const auto face_count = geom->getFaceCount();
+  const auto& faces = *geom->getFaces();
 
-  if (vertex_count > 0 && triangle_count > 0)
+  if (vertex_count > 0 && face_count > 0)
   {
-    // TODO: This is just a copy to get rid of the constness
-    auto vertices = std::make_shared<std::vector<hpp::fcl::Vec3f>>(static_cast<size_t>(vertex_count));
-    for (int i = 0; i < vertex_count; ++i)
-    {
-      vertices->at(static_cast<size_t>(i)) = geom->getVertices()->at(i);
-    }
+    auto vertices = std::const_pointer_cast<tesseract_common::VectorVector3d>(geom->getVertices());
 
-    auto tri_indices = std::make_shared<std::vector<hpp::fcl::Triangle>>(static_cast<size_t>(triangle_count));
-    for (int i = 0; i < triangle_count; ++i)
+    auto new_faces = std::make_shared<std::vector<Polygon>>();
+    new_faces->reserve(face_count);
+    for (int i = 0; i < faces.size(); ++i)
     {
-      assert(triangles[4L * i] == 3);
-      tri_indices->at(static_cast<size_t>(i)) = hpp::fcl::Triangle(static_cast<size_t>(triangles[(4 * i) + 1]),
-                                                                   static_cast<size_t>(triangles[(4 * i) + 2]),
-                                                                   static_cast<size_t>(triangles[(4 * i) + 3]));
+      Polygon new_face;
+      // First value of each face is the number of vertices
+      new_face.resize(faces[i]);
+      for (int& j : new_face)
+      {
+        ++i;
+        j = faces[i];
+      }
+      new_faces->emplace_back(new_face);
     }
+    assert(new_faces->size() == face_count);
 
-    return std::make_shared<hpp::fcl::Convex<hpp::fcl::Triangle>>(vertices, vertex_count, tri_indices, triangle_count);
+    return std::make_shared<hpp::fcl::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
   }
 
   CONSOLE_BRIDGE_logError("The mesh is empty!");
