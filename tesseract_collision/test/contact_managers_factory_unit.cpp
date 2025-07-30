@@ -41,8 +41,8 @@ void runContactManagersFactoryTest(const std::filesystem::path& config_path)
 {
   tesseract_common::GeneralResourceLocator locator;
   ContactManagersPluginFactory factory(config_path, locator);
-  YAML::Node plugin_config =
-      tesseract_common::processYamlIncludeDirective(YAML::LoadFile(config_path.string()), locator);
+  YAML::Node plugin_config = YAML::LoadFile(config_path.string());
+  tesseract_common::processYamlIncludeDirective(plugin_config, locator);
 
   const YAML::Node& plugin_info = plugin_config["contact_manager_plugins"];
   const YAML::Node& search_paths = plugin_info["search_paths"];
@@ -139,7 +139,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_hpp_fcl_factories
+                              - tesseract_collision_coal_factories
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -149,8 +149,8 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
                                   class: BulletDiscreteSimpleManagerFactory
                                 FCLDiscreteBVHManager:
                                   class: FCLDiscreteBVHManagerFactory
-                                HPP_FCLDiscreteBVHManager:
-                                  class: HPP_FCLDiscreteBVHManagerFactory
+                                CoalDiscreteBVHManager:
+                                  class: CoalDiscreteBVHManagerFactory
                             continuous_plugins:
                               default: BulletCastBVHManager
                               plugins:
@@ -316,7 +316,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_hpp_fcl_factories
+                              - tesseract_collision_coal_factories
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -326,8 +326,8 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
                                   class: BulletDiscreteSimpleManagerFactory
                                 FCLDiscreteBVHManager:
                                   class: FCLDiscreteBVHManagerFactory
-                                HPP_FCLDiscreteBVHManager:
-                                  class: HPP_FCLDiscreteBVHManagerFactory)";
+                                CoalDiscreteBVHManager:
+                                  class: CoalDiscreteBVHManagerFactory)";
 
   tesseract_common::GeneralResourceLocator locator;
   ContactManagersPluginFactory factory(config, locator);
@@ -376,7 +376,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_hpp_fcl_factories
+                              - tesseract_collision_coal_factories
                             continuous_plugins:
                               default: BulletCastBVHManager
                               plugins:

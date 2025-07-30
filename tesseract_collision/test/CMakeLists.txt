@@ -20,7 +20,7 @@ macro(add_gtest test_name test_file)
     PRIVATE GTest::GTest
             GTest::Main
             ${PROJECT_NAME}_test_suite
-            ${PROJECT_NAME}_hpp_fcl
+            ${PROJECT_NAME}_coal
             tesseract::tesseract_collision_core
             tesseract::tesseract_collision_bullet
             tesseract::tesseract_collision_fcl
@@ -47,7 +47,7 @@ macro(add_gtest test_name test_file)
   add_dependencies(
     ${test_name}
     ${PROJECT_NAME}_test_suite
-    ${PROJECT_NAME}_hpp_fcl
+    ${PROJECT_NAME}_coal
     tesseract::tesseract_collision_core
     tesseract::tesseract_collision_bullet
     tesseract::tesseract_collision_fcl)
@@ -71,7 +71,6 @@ add_gtest(${PROJECT_NAME}_compound_compound_unit collision_compound_compound_uni
 add_gtest(${PROJECT_NAME}_compound_mesh_sphere_unit collision_compound_mesh_sphere_unit.cpp)
 add_gtest(${PROJECT_NAME}_sphere_sphere_cast_unit collision_sphere_sphere_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_octomap_octomap_unit collision_octomap_octomap_unit.cpp)
-add_gtest(${PROJECT_NAME}_collision_margin_data_unit collision_margin_data_unit.cpp)
 add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)

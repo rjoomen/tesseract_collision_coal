@@ -53,7 +53,7 @@ set(COVERAGE_EXCLUDE
     ${CMAKE_CURRENT_LIST_DIR}/test/*
     ${CMAKE_CURRENT_LIST_DIR}/include/tesseract_collision/test_suite/*
     /*/gtest/*
-    /*/include/hpp_fcl/*)
+    /*/include/coal/*)
 add_code_coverage_all_targets(EXCLUDE ${COVERAGE_EXCLUDE} ENABLE ${TESSERACT_ENABLE_CODE_COVERAGE})
 
 # Define compile-time default variables
@@ -74,12 +74,12 @@ if(TESSERACT_BUILD_TEST_SUITE)
   add_subdirectory(test_suite)
 endif()
 
-# HPP-FCL
-option(TESSERACT_BUILD_HPP_FCL "Build HPP-FCL components" ON)
-if(TESSERACT_BUILD_HPP_FCL)
-  message("Building HPP-FCL components")
-  list(APPEND SUPPORTED_COMPONENTS hpp_fcl)
-  add_subdirectory(hpp_fcl)
+# Coal
+option(TESSERACT_BUILD_COAL "Build Coal components" ON)
+if(TESSERACT_BUILD_COAL)
+  message("Building Coal components")
+  list(APPEND SUPPORTED_COMPONENTS coal)
+  add_subdirectory(coal)
 endif()
 
 # Add compiler definition to core so it can find all plugins produced
@@ -91,24 +91,24 @@ endif()
 # target_compile_definitions(${PROJECT_NAME}_core
 #                            PRIVATE TESSERACT_CONTACT_MANAGERS_PLUGINS="${CONTACT_MANAGERS_PLUGINS_STRING}")
 
-# Add compiler definition to hpp_fcl so it can find all plugins produced
+# Add compiler definition to coal so it can find all plugins produced
 string(
   REPLACE ";"
           ":"
           CONTACT_MANAGERS_PLUGINS_STRING
           "${CONTACT_MANAGERS_PLUGINS}")
-target_compile_definitions(${PROJECT_NAME}_hpp_fcl
+target_compile_definitions(${PROJECT_NAME}_coal
                            PRIVATE TESSERACT_CONTACT_MANAGERS_PLUGINS="${CONTACT_MANAGERS_PLUGINS_STRING}")
 
 # Testing
-if((TESSERACT_ENABLE_TESTING OR TESSERACT_COLLISION_ENABLE_TESTING) AND TESSERACT_BUILD_HPP_FCL)
+if((TESSERACT_ENABLE_TESTING OR TESSERACT_COLLISION_ENABLE_TESTING) AND TESSERACT_BUILD_COAL)
   enable_testing()
   add_run_tests_target(ENABLE ${TESSERACT_ENABLE_RUN_TESTING})
   add_subdirectory(test)
 endif()
 
 # Benchmarks
-if((TESSERACT_ENABLE_BENCHMARKING OR TESSERACT_COLLISION_ENABLE_BENCHMARKING) AND TESSERACT_BUILD_HPP_FCL
+if((TESSERACT_ENABLE_BENCHMARKING OR TESSERACT_COLLISION_ENABLE_BENCHMARKING) AND TESSERACT_BUILD_COAL
    AND TESSERACT_BUILD_TEST_SUITE)
   add_subdirectory(test/benchmarks)
 endif()

@@ -1,6 +1,6 @@
 /**
- * @file hpp_fcl_utils.h
- * @brief Tesseract ROS HPP-FCL Utility Functions.
+ * @file coal_utils.h
+ * @brief Tesseract ROS Coal Utility Functions.
  *
  * @author Levi Armstrong
  * @date Dec 18, 2017
@@ -39,28 +39,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TESSERACT_COLLISION_HPP_FCL_UTILS_H
-#define TESSERACT_COLLISION_HPP_FCL_UTILS_H
+#ifndef TESSERACT_COLLISION_COAL_UTILS_H
+#define TESSERACT_COLLISION_COAL_UTILS_H
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <hpp/fcl/broadphase/broadphase_collision_manager.h>
-#include <hpp/fcl/collision.h>
-#include <hpp/fcl/distance.h>
 #include <memory>
 #include <console_bridge/console.h>
+#include <coal/broadphase/broadphase_collision_manager.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
 #include <tesseract_collision/core/common.h>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_collision_object_wrapper.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+#include <tesseract_collision/coal/coal_collision_object_wrapper.h>
+
+namespace tesseract_collision::tesseract_collision_coal
 {
-using CollisionGeometryPtr = std::shared_ptr<hpp::fcl::CollisionGeometry>;
-using CollisionObjectPtr = std::shared_ptr<HPP_FCLCollisionObjectWrapper>;
-using CollisionObjectRawPtr = hpp::fcl::CollisionObject*;
-using CollisionObjectConstPtr = std::shared_ptr<const hpp::fcl::CollisionObject>;
+using CollisionGeometryPtr = std::shared_ptr<coal::CollisionGeometry>;
+using CollisionObjectPtr = std::shared_ptr<CoalCollisionObjectWrapper>;
+using CollisionObjectRawPtr = coal::CollisionObject*;
+using CollisionObjectConstPtr = std::shared_ptr<const coal::CollisionObject>;
 
 enum CollisionFilterGroups : std::int8_t
 {
@@ -116,7 +115,7 @@ public:
     for (auto& co : collision_objects_)
     {
       auto tf = pose * shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
-      co->setTransform(hpp::fcl::Transform3f(tf.rotation(), tf.translation()));
+      co->setTransform(coal::Transform3s(tf.rotation(), tf.translation()));
       co->updateAABB();  // This a tesseract function that updates the aabb to take into account contact distance
     }
   }
@@ -147,9 +146,9 @@ public:
     clone_cow->collision_objects_raw_.reserve(collision_objects_.size());
     for (const auto& co : collision_objects_)
     {
-      assert(std::dynamic_pointer_cast<HPP_FCLCollisionObjectWrapper>(co) != nullptr);
+      assert(std::dynamic_pointer_cast<CoalCollisionObjectWrapper>(co) != nullptr);
       auto collObj =
-          std::make_shared<HPP_FCLCollisionObjectWrapper>(*std::static_pointer_cast<HPP_FCLCollisionObjectWrapper>(co));
+          std::make_shared<CoalCollisionObjectWrapper>(*std::static_pointer_cast<CoalCollisionObjectWrapper>(co));
       collObj->setUserData(clone_cow.get());
       collObj->setTransform(co->getTransform());
       collObj->updateAABB();
@@ -168,7 +167,7 @@ public:
    * @param co fcl collision shape
    * @return links collision shape index
    */
-  static int getShapeIndex(const hpp::fcl::CollisionObject* co);
+  static int getShapeIndex(const coal::CollisionObject* co);
 
 protected:
   std::string name_;                                              // name of the collision object
@@ -193,11 +192,11 @@ using COW = CollisionObjectWrapper;
 using Link2COW = std::map<std::string, COW::Ptr>;
 using Link2ConstCOW = std::map<std::string, COW::ConstPtr>;
 
-inline COW::Ptr createHPP_FCLCollisionObject(const std::string& name,
-                                         const int& type_id,
-                                         const CollisionShapesConst& shapes,
-                                         const tesseract_common::VectorIsometry3d& shape_poses,
-                                         bool enabled)
+inline COW::Ptr createCoalCollisionObject(const std::string& name,
+                                             const int& type_id,
+                                             const CollisionShapesConst& shapes,
+                                             const tesseract_common::VectorIsometry3d& shape_poses,
+                                             bool enabled)
 {
   // dont add object that does not have geometry
   if (shapes.empty() || shape_poses.empty() || (shapes.size() != shape_poses.size()))
@@ -209,7 +208,7 @@ inline COW::Ptr createHPP_FCLCollisionObject(const std::string& name,
   auto new_cow = std::make_shared<COW>(name, type_id, shapes, shape_poses);
 
   new_cow->m_enabled = enabled;
-  CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getName().c_str());
+  // CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getName().c_str());
   return new_cow;
 }
 
@@ -222,8 +221,8 @@ inline COW::Ptr createHPP_FCLCollisionObject(const std::string& name,
  */
 inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
                                          const COW::Ptr& cow,
-                                         const std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager>& static_manager,
-                                         const std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager>& dynamic_manager)
+                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   // For discrete checks we can check static to kinematic and kinematic to
   // kinematic
@@ -269,25 +268,24 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   }
 }
 
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
-struct CollisionCallback : hpp::fcl::CollisionCallBackBase
+struct CollisionCallback : coal::CollisionCallBackBase
 {
   ContactTestData* cdata{};
-  bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
+  bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
   virtual ~CollisionCallback() = default;
 };
 
-struct DistanceCallback : hpp::fcl::CollisionCallBackBase
+struct DistanceCallback : coal::CollisionCallBackBase
 {
   ContactTestData* cdata{};
-  bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
+  bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
   virtual ~DistanceCallback() = default;
 };
 
 #pragma GCC diagnostic pop
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
-#endif  // TESSERACT_COLLISION_HPP_FCL_UTILS_H
+}  // namespace tesseract_collision::tesseract_collision_coal
+#endif  // TESSERACT_COLLISION_COAL_UTILS_H

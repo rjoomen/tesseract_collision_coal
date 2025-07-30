@@ -4,7 +4,7 @@
 #include <tesseract_collision/test_suite/benchmarks/primatives_benchmarks.hpp>
 #include <tesseract_collision/test_suite/benchmarks/large_dataset_benchmarks.hpp>
 #include <tesseract_collision/test_suite/benchmarks/benchmark_utils.hpp>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
+#include <tesseract_collision/coal/coal_discrete_managers.h>
 #include <tesseract_geometry/geometry.h>
 
 using namespace tesseract_collision;
@@ -16,8 +16,8 @@ static bool RUN_QUICK = true;
 
 int main(int argc, char** argv)
 {
-  const tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager::ConstPtr checker =
-      std::make_shared<tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager>();
+  const tesseract_collision_coal::CoalDiscreteBVHManager::ConstPtr checker =
+      std::make_shared<tesseract_collision_coal::CoalDiscreteBVHManager>();
 
   //////////////////////////////////////
   // Clone

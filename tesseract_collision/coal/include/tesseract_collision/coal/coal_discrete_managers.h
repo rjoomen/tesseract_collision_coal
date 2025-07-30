@@ -1,6 +1,6 @@
 /**
- * @file hpp_fcl_discrete_managers.h
- * @brief Tesseract ROS HPP-FCL contact checker implementation.
+ * @file coal_discrete_managers.h
+ * @brief Tesseract ROS Coal contact checker implementation.
  *
  * @author Levi Armstrong
  * @date Dec 18, 2017
@@ -39,29 +39,34 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TESSERACT_COLLISION_HPP_FCL_DISCRETE_MANAGERS_H
-#define TESSERACT_COLLISION_HPP_FCL_DISCRETE_MANAGERS_H
+#ifndef TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H
+#define TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H
+
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <coal/broadphase/broadphase_collision_manager.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/discrete_contact_manager.h>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_utils.h>
+#include <tesseract_collision/coal/coal_utils.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
-/** @brief A HPP-FCL implementation of the discrete contact manager */
-class HPP_FCLDiscreteBVHManager : public DiscreteContactManager
+/** @brief A Coal implementation of the discrete contact manager */
+class CoalDiscreteBVHManager : public DiscreteContactManager
 {
 public:
-  using Ptr = std::shared_ptr<HPP_FCLDiscreteBVHManager>;
-  using ConstPtr = std::shared_ptr<const HPP_FCLDiscreteBVHManager>;
-  using UPtr = std::unique_ptr<HPP_FCLDiscreteBVHManager>;
-  using ConstUPtr = std::unique_ptr<const HPP_FCLDiscreteBVHManager>;
+  using Ptr = std::shared_ptr<CoalDiscreteBVHManager>;
+  using ConstPtr = std::shared_ptr<const CoalDiscreteBVHManager>;
+  using UPtr = std::unique_ptr<CoalDiscreteBVHManager>;
+  using ConstUPtr = std::unique_ptr<const CoalDiscreteBVHManager>;
 
-  HPP_FCLDiscreteBVHManager(std::string name = "HPP_FCLDiscreteBVHManager");
-  ~HPP_FCLDiscreteBVHManager() override = default;
-  HPP_FCLDiscreteBVHManager(const HPP_FCLDiscreteBVHManager&) = delete;
-  HPP_FCLDiscreteBVHManager& operator=(const HPP_FCLDiscreteBVHManager&) = delete;
-  HPP_FCLDiscreteBVHManager(HPP_FCLDiscreteBVHManager&&) = delete;
-  HPP_FCLDiscreteBVHManager& operator=(HPP_FCLDiscreteBVHManager&&) = delete;
+  CoalDiscreteBVHManager(std::string name = "CoalDiscreteBVHManager");
+  ~CoalDiscreteBVHManager() override = default;
+  CoalDiscreteBVHManager(const CoalDiscreteBVHManager&) = delete;
+  CoalDiscreteBVHManager& operator=(const CoalDiscreteBVHManager&) = delete;
+  CoalDiscreteBVHManager(CoalDiscreteBVHManager&&) = delete;
+  CoalDiscreteBVHManager& operator=(CoalDiscreteBVHManager&&) = delete;
 
   std::string getName() const override final;
 
@@ -101,17 +106,21 @@ public:
 
   const std::vector<std::string>& getActiveCollisionObjects() const override final;
 
-  void setCollisionMarginData(
-      CollisionMarginData collision_margin_data,
-      CollisionMarginOverrideType override_type = CollisionMarginOverrideType::REPLACE) override final;
-
-  void setDefaultCollisionMarginData(double default_collision_margin) override final;
-
-  void setPairCollisionMarginData(const std::string& name1,
-                                  const std::string& name2,
-                                  double collision_margin) override final;
+  void setCollisionMarginData(CollisionMarginData collision_margin_data) override final;
 
   const CollisionMarginData& getCollisionMarginData() const override final;
+
+  void setCollisionMarginPairData(
+      const CollisionMarginPairData& pair_margin_data,
+      CollisionMarginPairOverrideType override_type = CollisionMarginPairOverrideType::REPLACE) override final;
+
+  void setDefaultCollisionMargin(double default_collision_margin) override final;
+
+  void setCollisionMarginPair(const std::string& name1,
+                              const std::string& name2,
+                              double collision_margin) override final;
+
+  void incrementCollisionMargin(double increment) override final;
 
   void
   setContactAllowedValidator(std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator) override final;
@@ -130,10 +139,10 @@ private:
   std::string name_;
 
   /** @brief Broad-phase Collision Manager for active collision objects */
-  std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager> static_manager_;
+  std::unique_ptr<coal::BroadPhaseCollisionManager> static_manager_;
 
   /** @brief Broad-phase Collision Manager for active collision objects */
-  std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager> dynamic_manager_;
+  std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
   Link2COW link2cow_;               /**< @brief A map of all (static and active) collision objects being managed */
   std::vector<std::string> active_; /**< @brief A list of the active collision objects */
@@ -153,5 +162,5 @@ private:
   void onCollisionMarginDataChanged();
 };
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
-#endif  // TESSERACT_COLLISION_HPP_FCL_DISCRETE_MANAGERS_H
+}  // namespace tesseract_collision::tesseract_collision_coal
+#endif  // TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H

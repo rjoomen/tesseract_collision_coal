@@ -48,7 +48,7 @@ TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories_not_there
                               - tesseract_collision_fcl_factories_not_there
-                              - tesseract_collision_hpp_fcl_factories_not_there
+                              - tesseract_collision_coal_factories_not_there
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -58,8 +58,8 @@ TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
                                   class: BulletDiscreteSimpleManagerFactory
                                 FCLDiscreteBVHManager:
                                   class: FCLDiscreteBVHManagerFactory
-                                HPP_FCLDiscreteBVHManager:
-                                  class: HPP_FCLDiscreteBVHManagerFactory
+                                CoalDiscreteBVHManager:
+                                  class: CoalDiscreteBVHManagerFactory
                             continuous_plugins:
                               default: BulletCastBVHManager
                               plugins:

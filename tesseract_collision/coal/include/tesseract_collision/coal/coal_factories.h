@@ -1,6 +1,6 @@
 /**
- * @file hpp_fcl_factories.h
- * @brief Factories for loading hpp-fcl contact managers as plugins
+ * @file coal_factories.h
+ * @brief Factories for loading Coal contact managers as plugins
  *
  * @author Levi Armstrong
  * @date October 25, 2021
@@ -23,21 +23,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef TESSERACT_COLLISION_HPP_FCL_FCL_FACTORIES_H
-#define TESSERACT_COLLISION_HPP_FCL_FCL_FACTORIES_H
+#ifndef TESSERACT_COLLISION_COAL_FCL_FACTORIES_H
+#define TESSERACT_COLLISION_COAL_FCL_FACTORIES_H
 
 #include <tesseract_collision/core/contact_managers_plugin_factory.h>
+#include <boost_plugin_loader/macros.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
-class HPP_FCLDiscreteBVHManagerFactory : public DiscreteContactManagerFactory
+class CoalDiscreteBVHManagerFactory : public DiscreteContactManagerFactory
 {
 public:
   std::unique_ptr<DiscreteContactManager> create(const std::string& name,
                                                  const YAML::Node& config) const override final;
 };
 
-TESSERACT_PLUGIN_ANCHOR_DECL(HPP_FCLFactoriesAnchor)
+PLUGIN_ANCHOR_DECL(CoalFactoriesAnchor)
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
-#endif  // TESSERACT_COLLISION_HPP_FCL_FCL_FACTORIES_H
+}  // namespace tesseract_collision::tesseract_collision_coal
+#endif  // TESSERACT_COLLISION_COAL_FCL_FACTORIES_H

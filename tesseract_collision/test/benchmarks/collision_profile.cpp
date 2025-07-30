@@ -1,6 +1,5 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <random>
 #include <chrono>
 #include <memory>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -11,9 +10,10 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/bullet/bullet_cast_bvh_manager.h>
 #include <tesseract_collision/bullet/convex_hull_utils.h>
 #include <tesseract_collision/fcl/fcl_discrete_managers.h>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
+#include <tesseract_collision/coal/coal_discrete_managers.h>
 
 #include <tesseract_geometry/impl/sphere.h>
+#include <tesseract_common/ply_io.h>
 #include <tesseract_common/resource_locator.h>
 
 static const std::size_t DIM = 10;
@@ -35,10 +35,11 @@ void addCollisionObjects(DiscreteContactManager& checker, bool use_single_link, 
     auto mesh_faces = std::make_shared<Eigen::VectorXi>();
 
     tesseract_common::GeneralResourceLocator locator;
-    loadSimplePlyFile(locator.locateResource("package://tesseract_support/meshes/sphere_p25m.ply")->getFilePath(),
-                      *mesh_vertices,
-                      *mesh_faces,
-                      true);
+    tesseract_common::loadSimplePlyFile(
+        locator.locateResource("package://tesseract_support/meshes/sphere_p25m.ply")->getFilePath(),
+        *mesh_vertices,
+        *mesh_faces,
+        true);
 
     auto mesh = std::make_shared<tesseract_geometry::Mesh>(mesh_vertices, mesh_faces);
     sphere = makeConvexMesh(*mesh);
@@ -106,10 +107,11 @@ void addCollisionObjects(ContinuousContactManager& checker, bool use_single_link
     auto mesh_faces = std::make_shared<Eigen::VectorXi>();
 
     tesseract_common::GeneralResourceLocator locator;
-    loadSimplePlyFile(locator.locateResource("package://tesseract_support/meshes/sphere_p25m.ply")->getFilePath(),
-                      *mesh_vertices,
-                      *mesh_faces,
-                      true);
+    tesseract_common::loadSimplePlyFile(
+        locator.locateResource("package://tesseract_support/meshes/sphere_p25m.ply")->getFilePath(),
+        *mesh_vertices,
+        *mesh_faces,
+        true);
 
     auto mesh = std::make_shared<tesseract_geometry::Mesh>(mesh_vertices, mesh_faces);
     sphere = makeConvexMesh(*mesh);
@@ -182,13 +184,13 @@ void runDiscreteProfile(bool use_single_link, bool use_convex_mesh, double conta
   auto bt_simple_checker = std::make_shared<tesseract_collision_bullet::BulletDiscreteSimpleManager>();
   auto bt_bvh_checker = std::make_shared<tesseract_collision_bullet::BulletDiscreteBVHManager>();
   auto fcl_bvh_checker = std::make_shared<tesseract_collision_fcl::FCLDiscreteBVHManager>();
-  auto hpp_fcl_bvh_checker = std::make_shared<tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager>();
+  auto coal_bvh_checker = std::make_shared<tesseract_collision_coal::CoalDiscreteBVHManager>();
 
   std::vector<Eigen::Isometry3d> poses = getTransforms(50);
   std::vector<DiscreteContactManager::Ptr> checkers = {
-    bt_simple_checker, bt_bvh_checker, fcl_bvh_checker, hpp_fcl_bvh_checker
+    bt_simple_checker, bt_bvh_checker, fcl_bvh_checker, coal_bvh_checker
   };
-  std::vector<std::string> checker_names = { "BtSimple", "BtBVH", "FCLBVH", "HPP_FCLBHV" };
+  std::vector<std::string> checker_names = { "BtSimple", "BtBVH", "FCLBVH", "CoalBHV" };
   std::vector<long> checker_contacts = { 0, 0, 0, 0 };
 
   std::printf("Total number of shape: %d\n", int(DIM * DIM * DIM));
@@ -224,7 +226,7 @@ void runContinuousProfile(bool use_single_link, bool use_convex_mesh, double con
 
   std::vector<Eigen::Isometry3d> poses = getTransforms(50);
   std::vector<ContinuousContactManager::Ptr> checkers = { bt_simple_checker, bt_bvh_checker };
-  std::vector<std::string> checker_names = { "BtCastSimple", "BtCastBVH" };
+  std::vector<std::string> checker_names = { "BtCastSimple", "BtCastBVH"};
   std::vector<long> checker_contacts = { 0, 0, 0 };
 
   Eigen::Isometry3d delta_pose;

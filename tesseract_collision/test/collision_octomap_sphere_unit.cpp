@@ -7,7 +7,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/bullet/bullet_discrete_simple_manager.h>
 #include <tesseract_collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract_collision/fcl/fcl_discrete_managers.h>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
+#include <tesseract_collision/coal/coal_discrete_managers.h>
 
 using namespace tesseract_collision;
 
@@ -47,15 +47,15 @@ TEST(TesseractCollisionUnit, FCLDiscreteBVHCollisionOctomapSphereConvexHullUnit)
   test_suite::runTest(checker, 0.16, true);  // TODO: There appears to be an issue in fcl for octomap::OcTree.
 }
 
-TEST(TesseractCollisionUnit, HPP_FCLDiscreteBVHCollisionOctomapSphereUnit)  // NOLINT
+TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapSphereUnit)  // NOLINT
 {
-  tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
+  tesseract_collision_coal::CoalDiscreteBVHManager checker;
   test_suite::runTest(checker, 0.16, false);
 }
 
-TEST(TesseractCollisionUnit, HPP_FCLDiscreteBVHCollisionOctomapSphereConvexHullUnit)  // NOLINT
+TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapSphereConvexHullUnit)  // NOLINT
 {
-  tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
+  tesseract_collision_coal::CoalDiscreteBVHManager checker;
   test_suite::runTest(checker, 0.16, true);
 }
 

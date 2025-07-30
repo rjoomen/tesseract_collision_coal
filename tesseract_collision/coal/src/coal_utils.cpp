@@ -40,51 +40,53 @@
  */
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <hpp/fcl/BVH/BVH_model.h>
-#include <hpp/fcl/shape/geometric_shapes.h>
-#include <hpp/fcl/shape/convex.h>
-#include <hpp/fcl/data_types.h>
-#include <hpp/fcl/octree.h>
-#include <memory>
+#include <coal/collision_data.h>
+#include <coal/collision.h>
+#include <coal/distance.h>
+#include <coal/BVH/BVH_model.h>
+#include <coal/shape/geometric_shapes.h>
+#include <coal/shape/convex.h>
+#include <coal/data_types.h>
+#include <coal/octree.h>
 #include <stdexcept>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract_collision/hpp_fcl/hpp_fcl_utils.h>
+#include <tesseract_collision/coal/coal_utils.h>
 #include <tesseract_geometry/geometries.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
 
 namespace
 {
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Plane::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
+  return std::make_shared<coal::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Box::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Box>(geom->getX(), geom->getY(), geom->getZ());
+  return std::make_shared<coal::Box>(geom->getX(), geom->getY(), geom->getZ());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Sphere::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Sphere>(geom->getRadius());
+  return std::make_shared<coal::Sphere>(geom->getRadius());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Cylinder::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Cylinder>(geom->getRadius(), geom->getLength());
+  return std::make_shared<coal::Cylinder>(geom->getRadius(), geom->getLength());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Cone::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Cone>(geom->getRadius(), geom->getLength());
+  return std::make_shared<coal::Cone>(geom->getRadius(), geom->getLength());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Capsule::ConstPtr& geom)
 {
-  return std::make_shared<hpp::fcl::Capsule>(geom->getRadius(), geom->getLength());
+  return std::make_shared<coal::Capsule>(geom->getRadius(), geom->getLength());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstPtr& geom)
@@ -94,16 +96,16 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
   const tesseract_common::VectorVector3d& vertices = *(geom->getVertices());
   const Eigen::VectorXi& triangles = *(geom->getFaces());
 
-  auto g = std::make_shared<hpp::fcl::BVHModel<hpp::fcl::OBBRSS>>();
+  auto g = std::make_shared<coal::BVHModel<coal::OBBRSS>>();
   if (vertex_count > 0 && triangle_count > 0)
   {
-    std::vector<hpp::fcl::Triangle> tri_indices(static_cast<size_t>(triangle_count));
+    std::vector<coal::Triangle> tri_indices(static_cast<size_t>(triangle_count));
     for (int i = 0; i < triangle_count; ++i)
     {
       assert(triangles[4L * i] == 3);
-      tri_indices[static_cast<size_t>(i)] = hpp::fcl::Triangle(static_cast<size_t>(triangles[(4 * i) + 1]),
-                                                               static_cast<size_t>(triangles[(4 * i) + 2]),
-                                                               static_cast<size_t>(triangles[(4 * i) + 3]));
+      tri_indices[static_cast<size_t>(i)] = coal::Triangle(static_cast<size_t>(triangles[(4 * i) + 1]),
+                                                           static_cast<size_t>(triangles[(4 * i) + 2]),
+                                                           static_cast<size_t>(triangles[(4 * i) + 3]));
     }
 
     g->beginModel();
@@ -117,12 +119,54 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
   return nullptr;
 }
 
-// Coal polygon type
-struct Polygon : Eigen::VectorXi
+// Coal polygon type (modelled after TriangleTpl)
+template <typename IndexType_>
+struct PolygonTpl : Eigen::Matrix<IndexType_, -1, 1>
 {
-  using index_type = std::size_t;
+  using IndexType = IndexType_;
   using size_type = int;
+
+  // template <typename OtherIndexType>
+  // friend class Polygon;
+
+  /// @brief Default constructor
+  PolygonTpl() = default;
+
+  /// @brief Copy constructor
+  PolygonTpl(const PolygonTpl& other) : Eigen::Matrix<IndexType_, -1, 1>(other) {}
+
+  /// @brief Copy constructor from another vertex index type.
+  template <typename OtherIndexType>
+  PolygonTpl(const PolygonTpl<OtherIndexType>& other)
+  {
+    *this = other;
+  }
+
+  /// @brief Copy operator
+  PolygonTpl& operator=(const PolygonTpl& other)
+  {
+    this->_set(other);
+    return *this;
+  }
+
+  /// @brief Copy operator from another index type.
+  template <typename OtherIndexType>
+  PolygonTpl& operator=(const PolygonTpl<OtherIndexType>& other)
+  {
+    *this = other.template cast<OtherIndexType>();
+    return *this;
+  }
+
+  template <typename OtherIndexType>
+  PolygonTpl<OtherIndexType> cast() const
+  {
+    PolygonTpl<OtherIndexType> res;
+    res._set(*this);
+    return res;
+  }
 };
+
+using Polygon = PolygonTpl<std::uint32_t>;
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::ConstPtr& geom)
 {
@@ -141,7 +185,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::
       Polygon new_face;
       // First value of each face is the number of vertices
       new_face.resize(faces[i]);
-      for (int& j : new_face)
+      for (std::uint32_t& j : new_face)
       {
         ++i;
         j = faces[i];
@@ -150,7 +194,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::
     }
     assert(new_faces->size() == face_count);
 
-    return std::make_shared<hpp::fcl::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
+    return std::make_shared<coal::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
   }
 
   CONSOLE_BRIDGE_logError("The mesh is empty!");
@@ -163,11 +207,11 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Octree::Cons
   {
     case tesseract_geometry::OctreeSubType::BOX:
     {
-      return std::make_shared<hpp::fcl::OcTree>(geom->getOctree());
+      return std::make_shared<coal::OcTree>(geom->getOctree());
     }
     default:
     {
-      CONSOLE_BRIDGE_logError("This hpp-fcl octree sub shape type (%d) is not supported for geometry octree",
+      CONSOLE_BRIDGE_logError("This Coal octree sub shape type (%d) is not supported for geometry octree",
                               static_cast<int>(geom->getSubType()));
       return nullptr;
     }
@@ -221,7 +265,7 @@ CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& ge
     }
     default:
     {
-      CONSOLE_BRIDGE_logError("This geometric shape type (%d) is not supported using hpp-fcl yet",
+      CONSOLE_BRIDGE_logError("This geometric shape type (%d) is not supported using Coal yet",
                               static_cast<int>(geom->getType()));
       return nullptr;
     }
@@ -239,7 +283,7 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
   return createShapePrimitiveHelper(geom);
 }
 
-bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2)
+bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
     return true;
@@ -263,12 +307,21 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   if (cdata->req.type == ContactTestType::FIRST)
     num_contacts = 1;
 
-  hpp::fcl::CollisionResult col_result;
-  hpp::fcl::CollisionRequest col_request;
+  coal::CollisionResult col_result;
+  coal::CollisionRequest col_request;
   col_request.num_max_contacts = num_contacts;
   col_request.enable_contact = cdata->req.calculate_penetration;
-  col_request.gjk_variant = hpp::fcl::GJKVariant::NesterovAcceleration;
-  hpp::fcl::collide(o1, o2, col_request, col_result);
+  col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
+  col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+  col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
+  col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+  // col_request.gjk_tolerance = 1e-5;
+  // col_request.epa_tolerance = 1e-5;
+  col_request.break_distance = cdata->collision_margin_data.getMaxCollisionMargin();
+  // col_request.collision_distance_threshold // Leave at default (close to 0)
+  // col_request.distance_upper_bound = // Collision margin + buffer?
+  col_request.security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
+  coal::collide(o1, o2, col_request, col_result);
 
   if (col_result.isCollision())
   {
@@ -277,7 +330,7 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
 
     for (size_t i = 0; i < col_result.numContacts(); ++i)
     {
-      const hpp::fcl::Contact& fcl_contact = col_result.getContact(i);
+      const coal::Contact& fcl_contact = col_result.getContact(i);
       ContactResult contact;
       contact.link_names[0] = cd1->getName();
       contact.link_names[1] = cd2->getName();
@@ -307,7 +360,7 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   return cdata->done;
 }
 
-bool DistanceCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2)
+bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
     return true;
@@ -326,10 +379,17 @@ bool DistanceCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisio
   if (!needs_collision)
     return false;
 
-  hpp::fcl::DistanceResult fcl_result;
-  hpp::fcl::DistanceRequest fcl_request(true);
-  fcl_request.gjk_variant = hpp::fcl::GJKVariant::NesterovAcceleration;
-  const double d = hpp::fcl::distance(o1, o2, fcl_request, fcl_result);
+  coal::DistanceResult fcl_result;
+  coal::DistanceRequest fcl_request(true);
+  fcl_request.enable_signed_distance = cdata->req.calculate_penetration;
+  fcl_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
+  fcl_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+  fcl_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
+  fcl_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+  // fcl_request.gjk_tolerance = 1e-5;
+  // fcl_request.epa_tolerance = 1e-5;
+  // fcl_request.collision_distance_threshold // Leave at default (close to 0)
+  const double d = coal::distance(o1, o2, fcl_request, fcl_result);
 
   if (d < cdata->collision_margin_data.getMaxCollisionMargin())
   {
@@ -393,10 +453,10 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
         if (subshape != nullptr)
         {
           collision_geometries_.push_back(subshape);
-          auto co = std::make_shared<HPP_FCLCollisionObjectWrapper>(subshape);
+          auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
           co->setUserData(this);
           co->setShapeIndex(static_cast<int>(i));
-          co->setTransform(hpp::fcl::Transform3f(shape_poses_[i].rotation(), shape_poses_[i].translation()));
+          co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
           co->updateAABB();
           collision_objects_.push_back(co);
           collision_objects_raw_.push_back(co.get());
@@ -409,10 +469,10 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
       if (subshape != nullptr)
       {
         collision_geometries_.push_back(subshape);
-        auto co = std::make_shared<HPP_FCLCollisionObjectWrapper>(subshape);
+        auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
         co->setUserData(this);
         co->setShapeIndex(static_cast<int>(i));
-        co->setTransform(hpp::fcl::Transform3f(shape_poses_[i].rotation(), shape_poses_[i].translation()));
+        co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
         co->updateAABB();
         collision_objects_.push_back(co);
         collision_objects_raw_.push_back(co.get());
@@ -421,9 +481,9 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
   }
 }
 
-int CollisionObjectWrapper::getShapeIndex(const hpp::fcl::CollisionObject* co)
+int CollisionObjectWrapper::getShapeIndex(const coal::CollisionObject* co)
 {
-  return static_cast<const HPP_FCLCollisionObjectWrapper*>(co)->getShapeIndex();
+  return static_cast<const CoalCollisionObjectWrapper*>(co)->getShapeIndex();
 }
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
+}  // namespace tesseract_collision::tesseract_collision_coal

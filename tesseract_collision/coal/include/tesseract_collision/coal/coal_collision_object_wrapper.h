@@ -1,5 +1,5 @@
 /**
- * @file hpp_fcl_collision_object_wrapper.h
+ * @file coal_collision_object_wrapper.h
  * @brief Collision Object Wrapper to modify AABB with contact distance threshold
  *
  * @author Levi Armstrong
@@ -23,26 +23,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef TESSERACT_COLLISION_HPP_FCL_COLLISION_OBJECT_WRAPPER_H
-#define TESSERACT_COLLISION_HPP_FCL_COLLISION_OBJECT_WRAPPER_H
+#ifndef TESSERACT_COLLISION_COAL_COLLISION_OBJECT_WRAPPER_H
+#define TESSERACT_COLLISION_COAL_COLLISION_OBJECT_WRAPPER_H
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <hpp/fcl/collision_object.h>
+#include <coal/collision_object.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
 /**
- * @brief This is a wrapper around HPP-FCL Collision Object Class which allows you to expand the AABB by the contact
+ * @brief This is a wrapper around Coal Collision Object Class which allows you to expand the AABB by the contact
  * dist.
  *
  * This significantly improves performance when making distance requests if performing a contact tests type FIRST.
  */
-class HPP_FCLCollisionObjectWrapper : public hpp::fcl::CollisionObject
+class CoalCollisionObjectWrapper : public coal::CollisionObject
 {
 public:
-  using hpp::fcl::CollisionObject::CollisionObject;
+  using coal::CollisionObject::CollisionObject;
 
   /**
    * @brief Set the collision objects contact distance threshold.
@@ -84,6 +84,6 @@ protected:
   int shape_index_{ -1 };
 };
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
+}  // namespace tesseract_collision::tesseract_collision_coal
 
-#endif  // TESSERACT_COLLISION_HPP_FCL_COLLISION_OBJECT_WRAPPER_H
+#endif  // TESSERACT_COLLISION_COAL_COLLISION_OBJECT_WRAPPER_H

@@ -1,6 +1,6 @@
 /**
- * @file hpp_fcl_discrete_managers.cpp
- * @brief Tesseract ROS HPP-FCL contact checker implementation.
+ * @file coal_discrete_managers.cpp
+ * @brief Tesseract ROS Coal contact checker implementation.
  *
  * @author Levi Armstrong
  * @date Dec 18, 2017
@@ -41,28 +41,28 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <hpp/fcl/broadphase/broadphase_dynamic_AABB_tree.h>
+#include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
+#include <tesseract_collision/coal/coal_discrete_managers.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract_common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-HPP_FCLDiscreteBVHManager::HPP_FCLDiscreteBVHManager(std::string name) : name_(std::move(name))
+CoalDiscreteBVHManager::CoalDiscreteBVHManager(std::string name) : name_(std::move(name))
 {
-  static_manager_ = std::make_unique<hpp::fcl::DynamicAABBTreeCollisionManager>();
-  dynamic_manager_ = std::make_unique<hpp::fcl::DynamicAABBTreeCollisionManager>();
+  static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
+  dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   collision_margin_data_ = CollisionMarginData(0);
 }
 
-std::string HPP_FCLDiscreteBVHManager::getName() const { return name_; }
+std::string CoalDiscreteBVHManager::getName() const { return name_; }
 
-DiscreteContactManager::UPtr HPP_FCLDiscreteBVHManager::clone() const
+DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
 {
-  auto manager = std::make_unique<HPP_FCLDiscreteBVHManager>();
+  auto manager = std::make_unique<CoalDiscreteBVHManager>();
 
   for (const auto& cow : link2cow_)
     manager->addCollisionObject(cow.second->clone());
@@ -74,16 +74,16 @@ DiscreteContactManager::UPtr HPP_FCLDiscreteBVHManager::clone() const
   return manager;
 }
 
-bool HPP_FCLDiscreteBVHManager::addCollisionObject(const std::string& name,
-                                                   const int& mask_id,
-                                                   const CollisionShapesConst& shapes,
-                                                   const tesseract_common::VectorIsometry3d& shape_poses,
-                                                   bool enabled)
+bool CoalDiscreteBVHManager::addCollisionObject(const std::string& name,
+                                                const int& mask_id,
+                                                const CollisionShapesConst& shapes,
+                                                const tesseract_common::VectorIsometry3d& shape_poses,
+                                                bool enabled)
 {
   if (link2cow_.find(name) != link2cow_.end())
     removeCollisionObject(name);
 
-  const COW::Ptr new_cow = createHPP_FCLCollisionObject(name, mask_id, shapes, shape_poses, enabled);
+  const COW::Ptr new_cow = createCoalCollisionObject(name, mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -93,7 +93,7 @@ bool HPP_FCLDiscreteBVHManager::addCollisionObject(const std::string& name,
   return false;
 }
 
-const CollisionShapesConst& HPP_FCLDiscreteBVHManager::getCollisionObjectGeometries(const std::string& name) const
+const CollisionShapesConst& CoalDiscreteBVHManager::getCollisionObjectGeometries(const std::string& name) const
 {
   auto cow = link2cow_.find(name);
   return (link2cow_.find(name) != link2cow_.end()) ? cow->second->getCollisionGeometries() :
@@ -101,19 +101,19 @@ const CollisionShapesConst& HPP_FCLDiscreteBVHManager::getCollisionObjectGeometr
 }
 
 const tesseract_common::VectorIsometry3d&
-HPP_FCLDiscreteBVHManager::getCollisionObjectGeometriesTransforms(const std::string& name) const
+CoalDiscreteBVHManager::getCollisionObjectGeometriesTransforms(const std::string& name) const
 {
   auto cow = link2cow_.find(name);
   return (link2cow_.find(name) != link2cow_.end()) ? cow->second->getCollisionGeometriesTransforms() :
                                                      EMPTY_COLLISION_SHAPES_TRANSFORMS;
 }
 
-bool HPP_FCLDiscreteBVHManager::hasCollisionObject(const std::string& name) const
+bool CoalDiscreteBVHManager::hasCollisionObject(const std::string& name) const
 {
   return (link2cow_.find(name) != link2cow_.end());
 }
 
-bool HPP_FCLDiscreteBVHManager::removeCollisionObject(const std::string& name)
+bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
 {
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
@@ -121,10 +121,10 @@ bool HPP_FCLDiscreteBVHManager::removeCollisionObject(const std::string& name)
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     fcl_co_count_ -= objects.size();
 
-    std::vector<hpp::fcl::CollisionObject*> static_objs;
+    std::vector<coal::CollisionObject*> static_objs;
     static_manager_->getObjects(static_objs);
 
-    std::vector<hpp::fcl::CollisionObject*> dynamic_objs;
+    std::vector<coal::CollisionObject*> dynamic_objs;
     dynamic_manager_->getObjects(dynamic_objs);
 
     // Must check if object exists in the manager before calling unregister.
@@ -147,7 +147,7 @@ bool HPP_FCLDiscreteBVHManager::removeCollisionObject(const std::string& name)
   return false;
 }
 
-bool HPP_FCLDiscreteBVHManager::enableCollisionObject(const std::string& name)
+bool CoalDiscreteBVHManager::enableCollisionObject(const std::string& name)
 {
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
@@ -158,7 +158,7 @@ bool HPP_FCLDiscreteBVHManager::enableCollisionObject(const std::string& name)
   return false;
 }
 
-bool HPP_FCLDiscreteBVHManager::disableCollisionObject(const std::string& name)
+bool CoalDiscreteBVHManager::disableCollisionObject(const std::string& name)
 {
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
@@ -169,7 +169,7 @@ bool HPP_FCLDiscreteBVHManager::disableCollisionObject(const std::string& name)
   return false;
 }
 
-bool HPP_FCLDiscreteBVHManager::isCollisionObjectEnabled(const std::string& name) const
+bool CoalDiscreteBVHManager::isCollisionObjectEnabled(const std::string& name) const
 {
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
@@ -178,7 +178,7 @@ bool HPP_FCLDiscreteBVHManager::isCollisionObjectEnabled(const std::string& name
   return false;
 }
 
-void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose)
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose)
 {
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
@@ -202,8 +202,8 @@ void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const std::string& 
   }
 }
 
-void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<std::string>& names,
-                                                             const tesseract_common::VectorIsometry3d& poses)
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<std::string>& names,
+                                                          const tesseract_common::VectorIsometry3d& poses)
 {
   assert(names.size() == poses.size());
   static_update_.clear();
@@ -240,7 +240,7 @@ void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<s
     dynamic_manager_->update(dynamic_update_);
 }
 
-void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const tesseract_common::TransformMap& transforms)
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract_common::TransformMap& transforms)
 {
   static_update_.clear();
   dynamic_update_.clear();
@@ -276,9 +276,9 @@ void HPP_FCLDiscreteBVHManager::setCollisionObjectsTransform(const tesseract_com
     dynamic_manager_->update(dynamic_update_);
 }
 
-const std::vector<std::string>& HPP_FCLDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
+const std::vector<std::string>& CoalDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
 
-void HPP_FCLDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
+void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
   active_ = names;
 
@@ -290,41 +290,55 @@ void HPP_FCLDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std:
   static_manager_->update();
 }
 
-const std::vector<std::string>& HPP_FCLDiscreteBVHManager::getActiveCollisionObjects() const { return active_; }
-void HPP_FCLDiscreteBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data,
-                                                       CollisionMarginOverrideType override_type)
+const std::vector<std::string>& CoalDiscreteBVHManager::getActiveCollisionObjects() const { return active_; }
+
+void CoalDiscreteBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
-  collision_margin_data_.apply(collision_margin_data, override_type);
+  collision_margin_data_ = std::move(collision_margin_data);
   onCollisionMarginDataChanged();
 }
 
-void HPP_FCLDiscreteBVHManager::setDefaultCollisionMarginData(double default_collision_margin)
+const CollisionMarginData& CoalDiscreteBVHManager::getCollisionMarginData() const { return collision_margin_data_; }
+
+void CoalDiscreteBVHManager::setCollisionMarginPairData(const CollisionMarginPairData& pair_margin_data,
+                                                        CollisionMarginPairOverrideType override_type)
+{
+  collision_margin_data_.apply(pair_margin_data, override_type);
+  onCollisionMarginDataChanged();
+}
+
+void CoalDiscreteBVHManager::setDefaultCollisionMargin(double default_collision_margin)
 {
   collision_margin_data_.setDefaultCollisionMargin(default_collision_margin);
   onCollisionMarginDataChanged();
 }
 
-void HPP_FCLDiscreteBVHManager::setPairCollisionMarginData(const std::string& name1,
-                                                           const std::string& name2,
-                                                           double collision_margin)
+void CoalDiscreteBVHManager::setCollisionMarginPair(const std::string& name1,
+                                                    const std::string& name2,
+                                                    double collision_margin)
 {
-  collision_margin_data_.setPairCollisionMargin(name1, name2, collision_margin);
+  collision_margin_data_.setCollisionMargin(name1, name2, collision_margin);
   onCollisionMarginDataChanged();
 }
 
-const CollisionMarginData& HPP_FCLDiscreteBVHManager::getCollisionMarginData() const { return collision_margin_data_; }
-void HPP_FCLDiscreteBVHManager::setContactAllowedValidator(
+void CoalDiscreteBVHManager::incrementCollisionMargin(double increment)
+{
+  collision_margin_data_.incrementMargins(increment);
+  onCollisionMarginDataChanged();
+}
+
+void CoalDiscreteBVHManager::setContactAllowedValidator(
     std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator)
 {
   validator_ = std::move(validator);
 }
 std::shared_ptr<const tesseract_common::ContactAllowedValidator>
-HPP_FCLDiscreteBVHManager::getContactAllowedValidator() const
+CoalDiscreteBVHManager::getContactAllowedValidator() const
 {
   return validator_;
 }
 
-void HPP_FCLDiscreteBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
+void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
   ContactTestData cdata(active_, collision_margin_data_, validator_, request, collisions);
 
@@ -356,7 +370,7 @@ void HPP_FCLDiscreteBVHManager::contactTest(ContactResultMap& collisions, const 
   }
 }
 
-void HPP_FCLDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
+void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
   const std::size_t cnt = cow->getCollisionObjectsRaw().size();
   fcl_co_count_ += cnt;
@@ -387,7 +401,7 @@ void HPP_FCLDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   static_manager_->update();
 }
 
-void HPP_FCLDiscreteBVHManager::onCollisionMarginDataChanged()
+void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
 {
   static_update_.clear();
   dynamic_update_.clear();
@@ -412,4 +426,4 @@ void HPP_FCLDiscreteBVHManager::onCollisionMarginDataChanged()
   if (!dynamic_update_.empty())
     dynamic_manager_->update(dynamic_update_);
 }
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
+}  // namespace tesseract_collision::tesseract_collision_coal

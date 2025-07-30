@@ -1,5 +1,5 @@
 /**
- * @file hpp_fcl_collision_object_wrapper.cpp
+ * @file coal_collision_object_wrapper.cpp
  * @brief Collision Object Wrapper to modify AABB with contact distance threshold
  *
  * @author Levi Armstrong
@@ -24,30 +24,30 @@
  * limitations under the License.
  */
 
-#include <tesseract_collision/hpp_fcl/hpp_fcl_collision_object_wrapper.h>
+#include <tesseract_collision/coal/coal_collision_object_wrapper.h>
 
-namespace tesseract_collision::tesseract_collision_hpp_fcl
+namespace tesseract_collision::tesseract_collision_coal
 {
-void HPP_FCLCollisionObjectWrapper::setContactDistanceThreshold(double contact_distance)
+void CoalCollisionObjectWrapper::setContactDistanceThreshold(double contact_distance)
 {
   contact_distance_ = contact_distance;
   updateAABB();
 }
 
-double HPP_FCLCollisionObjectWrapper::getContactDistanceThreshold() const { return contact_distance_; }
+double CoalCollisionObjectWrapper::getContactDistanceThreshold() const { return contact_distance_; }
 
-void HPP_FCLCollisionObjectWrapper::updateAABB()
+void CoalCollisionObjectWrapper::updateAABB()
 {
   computeAABB();
   aabb.expand(contact_distance_);
 }
 
-void HPP_FCLCollisionObjectWrapper::setShapeIndex(int index) { shape_index_ = index; }
+void CoalCollisionObjectWrapper::setShapeIndex(int index) { shape_index_ = index; }
 
-int HPP_FCLCollisionObjectWrapper::getShapeIndex() const
+int CoalCollisionObjectWrapper::getShapeIndex() const
 {
   assert(shape_index_ >= 0);
   return shape_index_;
 }
 
-}  // namespace tesseract_collision::tesseract_collision_hpp_fcl
+}  // namespace tesseract_collision::tesseract_collision_coal
