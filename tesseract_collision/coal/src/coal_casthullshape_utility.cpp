@@ -59,37 +59,51 @@ namespace coal
 template <>
 void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Transform3s& tf, coal::AABB& bv)
 {
-  // We need to access the shape's swept vertices
-  // First, ensure swept vertices are up-to-date
-  const_cast<CastHullShape&>(s).computeSweptVertices();
+  const auto& shape = s.getUnderlyingShape().get();
+  const auto& castTransform = s.getCastTransform();
 
-  // Get the swept vertices
-  const auto& swept_vertices = s.getSweptVertices();
+  coal::AABB bv_original;
+  coal::AABB bv_cast;
 
-  if (swept_vertices.empty())
+  // Try to cast to specific shape types
+  if (const auto* box = dynamic_cast<const coal::Box*>(shape))
   {
-    // Handle empty case - set to zero-sized AABB at transform origin
-    const coal::Vec3s& origin = tf.getTranslation();
-    bv.min_ = origin;
-    bv.max_ = origin;
-    return;
+    coal::computeBV<coal::AABB>(*box, tf, bv_original);
+    coal::computeBV<coal::AABB>(*box, tf * castTransform, bv_cast);
+  }
+  else if (const auto* sphere = dynamic_cast<const coal::Sphere*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*sphere, tf, bv_original);
+    coal::computeBV<coal::AABB>(*sphere, tf * castTransform, bv_cast);
+  }
+  else if (const auto* cylinder = dynamic_cast<const coal::Cylinder*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*cylinder, tf, bv_original);
+    coal::computeBV<coal::AABB>(*cylinder, tf * castTransform, bv_cast);
+  }
+  else if (const auto* cone = dynamic_cast<const coal::Cone*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*cone, tf, bv_original);
+    coal::computeBV<coal::AABB>(*cone, tf * castTransform, bv_cast);
+  }
+  else if (const auto* capsule = dynamic_cast<const coal::Capsule*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*capsule, tf, bv_original);
+    coal::computeBV<coal::AABB>(*capsule, tf * castTransform, bv_cast);
+  }
+  else if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*convex, tf, bv_original);
+    coal::computeBV<coal::AABB>(*convex, tf * castTransform, bv_cast);
+  }
+  else if (const auto* ellipsoid = dynamic_cast<const coal::Ellipsoid*>(shape))
+  {
+    coal::computeBV<coal::AABB>(*ellipsoid, tf, bv_original);
+    coal::computeBV<coal::AABB>(*ellipsoid, tf * castTransform, bv_cast);
   }
 
-  // Initialize min/max with the transformed first vertex
-  coal::Vec3s tmin = (tf * swept_vertices[0]).translation();
-  coal::Vec3s tmax = tmin;
-
-  // Find the AABB that encloses all transformed swept vertices
-  for (size_t i = 1; i < swept_vertices.size(); ++i)
-  {
-    coal::Vec3s transformed_vertex = (tf * swept_vertices[i]).translation();
-    tmin = tmin.cwiseMin(transformed_vertex);
-    tmax = tmax.cwiseMax(transformed_vertex);
-  }
-
-  // Set the output bounding volume
-  bv.min_ = tmin;
-  bv.max_ = tmax;
+  // Combine both AABBs to get the swept volume AABB
+  bv = bv_original + bv_cast;
 }
 
 }  // namespace coal
