@@ -60,7 +60,7 @@ namespace tesseract_collision::tesseract_collision_coal
 class CastHullShape : public coal::ConvexBase32
 {
 public:
-  CastHullShape(std::shared_ptr<coal::CollisionGeometry> shape, const coal::Transform3s& castTransform)
+  CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
     : shape_(std::move(shape))
     , castTransform_(castTransform)
     , castTransformInv_(coal::Transform3s(castTransform).inverse())
@@ -101,26 +101,27 @@ public:
   }
 
   // Add these methods to the CastHullShape class declaration
-  const std::shared_ptr<coal::CollisionGeometry>& getUnderlyingShape() const { return shape_; }
+  const std::shared_ptr<coal::ShapeBase>& getUnderlyingShape() const { return shape_; }
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
 private:
-  std::shared_ptr<coal::CollisionGeometry> shape_;
+  std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
 
   // Pre-computed values
-  std::vector<coal::Vec3s> swept_vertices_;  // Changed to std::vector for flexible size
+  std::vector<coal::Vec3s> swept_vertices_;
 
   // Helper methods to extract vertices based on shape type
-  std::vector<coal::Vec3s> extractVertices(const coal::CollisionGeometry* geometry) const;
+  std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
   std::vector<coal::Vec3s> extractVerticesFromBox(const coal::Box* box) const;
   std::vector<coal::Vec3s> extractVerticesFromSphere(const coal::Sphere* sphere, int numPoints = 8) const;
   std::vector<coal::Vec3s> extractVerticesFromCylinder(const coal::Cylinder* cylinder, int numPoints = 8) const;
   std::vector<coal::Vec3s> extractVerticesFromCone(const coal::Cone* cone, int numPoints = 8) const;
+  std::vector<coal::Vec3s> extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints = 8) const;
   std::vector<coal::Vec3s> extractVerticesFromConvex(const coal::ConvexBase32* convex) const;
 
   // Helper method to find support vertex for any geometry type

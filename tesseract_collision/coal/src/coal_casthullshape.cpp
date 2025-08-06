@@ -54,6 +54,10 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/coal/coal_casthullshape.h>
 #include <tesseract_collision/coal/coal_casthullshape_utility.h>
 
+#include <tesseract_geometry/conversions.h>
+#include <tesseract_geometry/geometries.h>
+#include <tesseract_geometry/utils.h>
+
 namespace tesseract_collision::tesseract_collision_coal
 {
 
@@ -144,7 +148,7 @@ void CastHullShape::computeSweptVertices()
 }
 
 // Extract vertices based on shape type
-std::vector<coal::Vec3s> CastHullShape::extractVertices(const coal::CollisionGeometry* geometry) const
+std::vector<coal::Vec3s> CastHullShape::extractVertices(const coal::ShapeBase* geometry) const
 {
   // Try to cast to specific shape types and extract vertices
   if (const auto* box = dynamic_cast<const coal::Box*>(geometry))
@@ -155,8 +159,14 @@ std::vector<coal::Vec3s> CastHullShape::extractVertices(const coal::CollisionGeo
     return extractVerticesFromCylinder(cylinder);
   if (const auto* cone = dynamic_cast<const coal::Cone*>(geometry))
     return extractVerticesFromCone(cone);
+  if (const auto* capsule = dynamic_cast<const coal::Capsule*>(geometry))
+    return extractVerticesFromCapsule(capsule);
   if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(geometry))
     return extractVerticesFromConvex(convex);
+
+  // Ellipsoid
+  // Halfspace
+  // Plane
 
   // Fallback: use AABB corners
   coal::AABB aabb = geometry->aabb_local;
@@ -197,75 +207,37 @@ std::vector<coal::Vec3s> CastHullShape::extractVerticesFromBox(const coal::Box* 
 // Extract vertices approximating a Sphere
 std::vector<coal::Vec3s> CastHullShape::extractVerticesFromSphere(const coal::Sphere* sphere, int numPoints) const
 {
-  const double radius = sphere->radius;
-  std::vector<coal::Vec3s> vertices;
+  auto geom = tesseract_geometry::Sphere(sphere->radius);
+  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
 
-  // A simple approximation using points on the axes
-  vertices.emplace_back(radius, 0, 0);
-  vertices.emplace_back(-radius, 0, 0);
-  vertices.emplace_back(0, radius, 0);
-  vertices.emplace_back(0, -radius, 0);
-  vertices.emplace_back(0, 0, radius);
-  vertices.emplace_back(0, 0, -radius);
-
-  // Add some points around equator
-  const double step = 2.0 * M_PI / (numPoints - 6);
-  for (int i = 0; i < numPoints - 6; ++i)
-  {
-    double angle = i * step;
-    vertices.emplace_back(radius * cos(angle), radius * sin(angle), 0);
-  }
-
-  return vertices;
+  return *mesh->getVertices();
 }
 
 // Extract vertices approximating a Cylinder
 std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCylinder(const coal::Cylinder* cylinder, int numPoints) const
 {
-  const double radius = cylinder->radius;
-  const double halfHeight = cylinder->halfLength;
-  std::vector<coal::Vec3s> vertices;
-  vertices.reserve(static_cast<long>(numPoints) * 2);
+  auto geom = tesseract_geometry::Cylinder(cylinder->radius, cylinder->halfLength * 2.0);
+  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
 
-  // Generate points around top and bottom circles
-  const double step = 2.0 * M_PI / numPoints;
-  for (int i = 0; i < numPoints; ++i)
-  {
-    double angle = i * step;
-    double x = radius * cos(angle);
-    double y = radius * sin(angle);
-
-    // Top circle point
-    vertices.emplace_back(x, y, halfHeight);
-    // Bottom circle point
-    vertices.emplace_back(x, y, -halfHeight);
-  }
-
-  return vertices;
+  return *mesh->getVertices();
 }
 
 // Extract vertices approximating a Cone
 std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCone(const coal::Cone* cone, int numPoints) const
 {
-  const double radius = cone->radius;
-  const double halfHeight = cone->halfLength;
-  std::vector<coal::Vec3s> vertices;
-  vertices.reserve(numPoints + 1);
+  auto geom = tesseract_geometry::Cone(cone->radius, cone->halfLength * 2.0);
+  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
 
-  // Apex of the cone (assuming centered at origin with apex at +Z)
-  vertices.emplace_back(0, 0, halfHeight);
+  return *mesh->getVertices();
+}
 
-  // Generate points around base circle
-  const double step = 2.0 * M_PI / numPoints;
-  for (int i = 0; i < numPoints; ++i)
-  {
-    double angle = i * step;
-    double x = radius * cos(angle);
-    double y = radius * sin(angle);
-    vertices.emplace_back(x, y, -halfHeight);
-  }
+// Extract vertices approximating a Capsule
+std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints) const
+{
+  auto geom = tesseract_geometry::Capsule(capsule->radius, capsule->halfLength * 2.0);
+  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
 
-  return vertices;
+  return *mesh->getVertices();
 }
 
 // Extract vertices from ConvexBase
@@ -326,6 +298,14 @@ coal::Vec3s CastHullShape::computeSupportPoint(const coal::Vec3s& dir) const
 
     coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
         cone, transformedDir, supportEndLocal, hint, support_data);
+  }
+  else if (const auto* capsule = dynamic_cast<const coal::Capsule*>(shape_.get()))
+  {
+    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+        capsule, dir, supportStart, hint, support_data);
+
+    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+        capsule, transformedDir, supportEndLocal, hint, support_data);
   }
   else if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape_.get()))
   {
