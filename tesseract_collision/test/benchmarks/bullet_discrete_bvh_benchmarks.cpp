@@ -19,7 +19,6 @@ int main(int argc, char** argv)
   //////////////////////////////////////
   // Clone
   //////////////////////////////////////
-
   {
     std::vector<int> num_links = { 0, 2, 4, 8, 16, 32, 64, 128, 256, 512 };
     std::function<void(benchmark::State&, DiscreteBenchmarkInfo, int)> BM_CLONE_FUNC = BM_CLONE;
@@ -111,7 +110,7 @@ int main(int argc, char** argv)
     }
   }
 
-  //  Not in collision. Outside contact threshold
+  // Not in collision. Outside contact threshold
   {
     for (const auto& test_type : test_types)
     {

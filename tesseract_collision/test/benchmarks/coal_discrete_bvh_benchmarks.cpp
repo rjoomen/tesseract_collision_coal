@@ -11,9 +11,6 @@ using namespace tesseract_collision;
 using namespace test_suite;
 using namespace tesseract_geometry;
 
-// Removes some of the long running tests (greater than 30s). Set to false to run everything.
-static bool RUN_QUICK = true;
-
 int main(int argc, char** argv)
 {
   const tesseract_collision_coal::CoalDiscreteBVHManager::ConstPtr checker =
@@ -48,16 +45,9 @@ int main(int argc, char** argv)
   std::function<void(benchmark::State&, DiscreteBenchmarkInfo)> BM_CONTACT_TEST_FUNC = BM_CONTACT_TEST;
 
   // Make vector of all shapes to try
-  // Cone, Sphere, and Capsule are absurdly slow. It doesn't even make sense to run them (4/7/2020).
   std::vector<tesseract_geometry::GeometryType> geometry_types = {
-    GeometryType::BOX, GeometryType::CYLINDER, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE
+    GeometryType::BOX, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE, GeometryType::CYLINDER
   };
-  if (RUN_QUICK)
-  {
-    geometry_types.pop_back();
-    geometry_types.pop_back();
-    geometry_types.pop_back();
-  }
 
   std::vector<ContactTestType> test_types = {
     ContactTestType::ALL, ContactTestType::FIRST, ContactTestType::CLOSEST, ContactTestType::LIMITED
@@ -258,12 +248,6 @@ int main(int argc, char** argv)
           name.c_str(), BM_LARGE_DATASET_MULTILINK_FUNC, clone, edge_size, tesseract_geometry::GeometryType::SPHERE)
           ->UseRealTime()
           ->Unit(benchmark::TimeUnit::kNanosecond);
-    }
-    // These last two took 45s and 120s. Too long to run in CI, and impractical for our purposes anyway.
-    if (RUN_QUICK)
-    {
-      edge_sizes.pop_back();
-      edge_sizes.pop_back();
     }
     for (const auto& edge_size : edge_sizes)
     {

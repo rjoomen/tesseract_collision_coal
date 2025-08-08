@@ -13,9 +13,9 @@ macro(add_benchmark benchmark_name benchmark_file)
     ${benchmark_name}
     benchmark::benchmark
     ${PROJECT_NAME}_test_suite_benchmarks
-    ${PROJECT_NAME}_bullet
-    ${PROJECT_NAME}_fcl
     ${PROJECT_NAME}_coal
+    tesseract::tesseract_collision_bullet
+    tesseract::tesseract_collision_fcl
     tesseract::tesseract_geometry
     tesseract::tesseract_scene_graph
     console_bridge
@@ -28,10 +28,12 @@ macro(add_benchmark benchmark_name benchmark_file)
   add_dependencies(
     ${benchmark_name}
     ${PROJECT_NAME}_test_suite_benchmarks
-    ${PROJECT_NAME}_bullet
-    ${PROJECT_NAME}_fcl
+    tesseract::tesseract_collision_bullet
+    tesseract::tesseract_collision_fcl
     ${PROJECT_NAME}_coal)
-  add_run_benchmark_target(${benchmark_name})
+  if(TESSERACT_ENABLE_RUN_BENCHMARKING)
+    add_run_benchmark_target(${benchmark_name})
+  endif()
 endmacro()
 
 add_benchmark(${PROJECT_NAME}_bullet_discrete_simple_benchmarks bullet_discrete_simple_benchmarks.cpp)
@@ -43,9 +45,9 @@ add_benchmark(${PROJECT_NAME}_coal_discrete_bvh_benchmarks coal_discrete_bvh_ben
 add_executable(${PROJECT_NAME}_profile collision_profile.cpp)
 target_link_libraries(
   ${PROJECT_NAME}_profile
-  PRIVATE ${PROJECT_NAME}_bullet
-          ${PROJECT_NAME}_fcl
-          ${PROJECT_NAME}_coal
+  PRIVATE ${PROJECT_NAME}_coal
+          tesseract::tesseract_collision_bullet
+          tesseract::tesseract_collision_fcl
           tesseract::tesseract_geometry
           ${Boost_LIBRARIES}
           ${OCTOMAP_LIBRARIES}
