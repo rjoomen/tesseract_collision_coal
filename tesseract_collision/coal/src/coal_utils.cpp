@@ -52,6 +52,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/coal/coal_utils.h>
+#include <tesseract_collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract_geometry/geometries.h>
 
 namespace tesseract_collision::tesseract_collision_coal
@@ -274,13 +275,12 @@ CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& ge
 
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 {
-  // TODO: Implement cache (see FCLCollisionGeometryCache)
-  // CollisionGeometryPtr shape = CoalCollisionGeometryCache::get(geom);
-  // if (shape != nullptr)
-  //   return shape;
+  CollisionGeometryPtr shape = CoalCollisionGeometryCache::get(geom);
+  if (shape != nullptr)
+    return shape;
 
-  // shape = createShapePrimitiveHelper(geom);
-  // CoalCollisionGeometryCache::insert(geom, shape);
+  shape = createShapePrimitiveHelper(geom);
+  CoalCollisionGeometryCache::insert(geom, shape);
   return createShapePrimitiveHelper(geom);
 }
 
@@ -318,7 +318,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
   // col_request.gjk_tolerance = 1e-5;
   // col_request.epa_tolerance = 1e-5;
-  col_request.break_distance = cdata->collision_margin_data.getMaxCollisionMargin();
+  // col_request.break_distance // Leave at default?
   // col_request.collision_distance_threshold // Leave at default (close to 0)
   // col_request.distance_upper_bound = // Collision margin + buffer?
   col_request.security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
