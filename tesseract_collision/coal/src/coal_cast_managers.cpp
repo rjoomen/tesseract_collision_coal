@@ -562,18 +562,15 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   static_update_.clear();
   dynamic_update_.clear();
 
-  // Update regular collision objects
+  // Update regular collision objects (only static ones are in the broadphase;
+  // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
     cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
-    std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
+      std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
       static_update_.insert(static_update_.end(), co.begin(), co.end());
-    }
-    else
-    {
-      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
     }
   }
 
