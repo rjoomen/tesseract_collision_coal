@@ -43,6 +43,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/distance.h>
 #include <coal/BVH/BVH_model.h>
 #include <coal/shape/geometric_shapes.h>
+#include <coal/shape/geometric_shapes_utility.h>
+#include <coal/narrowphase/support_functions.h>
 #include <coal/shape/convex.h>
 #include <coal/data_types.h>
 #include <coal/octree.h>
@@ -285,6 +287,73 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
   return shape;
 }
 
+constexpr double COAL_SUPPORT_FUNC_TOLERANCE = 0.01;
+constexpr double COAL_LENGTH_TOLERANCE = 0.001;
+constexpr double COAL_EPSILON = 1e-6;
+
+/**
+ * @brief Compute the average support point for a COAL shape along a direction.
+ *
+ * For polyhedral shapes (Box, ConvexBase32), iterates all vertices and averages those
+ * at maximum support (within COAL_EPSILON). For smooth shapes, returns the single
+ * support point. Matches Bullet's GetAverageSupport behavior.
+ */
+void GetAverageSupport(const coal::ShapeBase* shape,
+                       const coal::Vec3s& normal,
+                       double& out_support,
+                       coal::Vec3s& out_point)
+{
+  coal::Vec3s pt_sum(0, 0, 0);
+  double pt_count = 0;
+  double max_support = -1e10;
+
+  // Lambda to iterate a set of vertices and compute average support
+  auto average_vertices = [&](const auto& vertices, std::size_t count) {
+    for (std::size_t j = 0; j < count; ++j)
+    {
+      double sup = vertices[j].dot(normal);
+      if (sup > max_support + COAL_EPSILON)
+      {
+        pt_count = 1;
+        pt_sum = vertices[j];
+        max_support = sup;
+      }
+      else if (sup >= max_support - COAL_EPSILON)
+      {
+        pt_count += 1;
+        pt_sum += vertices[j];
+      }
+    }
+    out_support = max_support;
+    out_point = pt_sum / pt_count;
+  };
+
+  if (const auto* box = dynamic_cast<const coal::Box*>(shape))
+  {
+    const coal::Vec3s& h = box->halfSide;
+    const std::array<coal::Vec3s, 8> verts = { coal::Vec3s(-h[0], -h[1], -h[2]),
+                                                coal::Vec3s(h[0], -h[1], -h[2]),
+                                                coal::Vec3s(-h[0], h[1], -h[2]),
+                                                coal::Vec3s(h[0], h[1], -h[2]),
+                                                coal::Vec3s(-h[0], -h[1], h[2]),
+                                                coal::Vec3s(h[0], -h[1], h[2]),
+                                                coal::Vec3s(-h[0], h[1], h[2]),
+                                                coal::Vec3s(h[0], h[1], h[2]) };
+    average_vertices(verts, 8);
+  }
+  else if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape))
+  {
+    const auto& pts = *convex->points;
+    average_vertices(pts, pts.size());
+  }
+  else
+  {
+    int hint = 0;
+    out_point = coal::details::getSupport(shape, normal, hint);
+    out_support = normal.dot(out_point);
+  }
+}
+
 inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                                 const CollisionObjectWrapper* cd2,
                                 const std::shared_ptr<const tesseract_common::ContactAllowedValidator>& validator,
@@ -298,11 +367,9 @@ inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 /**
  * @brief Populate continuous collision fields (cc_time, cc_type, cc_transform) on a ContactResult.
  *
- * For each collision object that wraps a CastHullShape (i.e. is part of a continuous/cast check),
- * this computes:
- *  - cc_transform: the end-of-motion world pose (pose1 * castTransform = pose2)
- *  - cc_time: linear interpolation parameter along the motion at which contact occurs
- *  - cc_type: classification (Time0, Time1, or Between)
+ * Uses support-function-based approach matching Bullet's calculateContinuousData:
+ * finds the shape's extreme points along the contact normal at t=0 and t=1, then
+ * classifies the collision time based on which pose has greater support.
  *
  * For objects that are not CastHullShapes (static objects), the fields are left at their defaults.
  */
@@ -311,6 +378,8 @@ void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o2)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
+  const Eigen::Vector3d pt_world = (contact.nearest_points[0] + contact.nearest_points[1]) / 2.0;
+
   for (std::size_t i = 0; i < 2; ++i)
   {
     const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometry().get());
@@ -325,25 +394,64 @@ void populateContinuousCollisionFields(ContactResult& contact,
     cast_eigen.translation() = ct.getTranslation();
     contact.cc_transform[i] = contact.transform[i] * cast_eigen;
 
-    // cc_time: project the contact point onto the linear motion trajectory
-    // Position at t=0 and t=1 for the local contact point
-    const Eigen::Vector3d p_t0 = contact.transform[i] * contact.nearest_points_local[i];
-    const Eigen::Vector3d p_t1 = contact.cc_transform[i] * contact.nearest_points_local[i];
-    const Eigen::Vector3d motion = p_t1 - p_t0;
-    const double motion_sq = motion.squaredNorm();
-    if (motion_sq > 1e-12)
-      contact.cc_time[i] = std::clamp(motion.dot(contact.nearest_points[i] - p_t0) / motion_sq, 0.0, 1.0);
-    else
-      contact.cc_time[i] = 0.0;
+    // Shape world transforms at t=0 and t=1
+    const coal::Transform3s& tf_world0 = objects[i]->getTransform();
+    coal::Transform3s tf_world1 = tf_world0 * ct;
 
-    // cc_type
-    constexpr double eps = 1e-3;
-    if (contact.cc_time[i] <= eps)
+    // Normal pointing from current object toward the other (matching Bullet convention)
+    // COAL contact.normal points from o1 to o2; Bullet's m_normalWorldOnB points from o2 to o1
+    const coal::Vec3s normal_world = (i == 0) ? coal::Vec3s(contact.normal) : coal::Vec3s(-contact.normal);
+
+    // Transform normal into local frames at t=0 and t=1
+    coal::Vec3s normal_local0 = tf_world0.getRotation().transpose() * normal_world;
+    coal::Vec3s normal_local1 = tf_world1.getRotation().transpose() * normal_world;
+
+    // Get average support points on the underlying shape at both local normals
+    const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
+    coal::Vec3s pt_local0;
+    double sup_local0 = 0;
+    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0);
+    coal::Vec3s pt_world0 = tf_world0.transform(pt_local0);
+
+    coal::Vec3s pt_local1;
+    double sup_local1 = 0;
+    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
+    coal::Vec3s pt_world1 = tf_world1.transform(pt_local1);
+
+    // Compare support projections along the contact normal
+    double shape_sup0 = normal_world.dot(pt_world0);
+    double shape_sup1 = normal_world.dot(pt_world1);
+
+    if (shape_sup0 - shape_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
+    {
+      contact.cc_time[i] = 0;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
-    else if (contact.cc_time[i] >= 1.0 - eps)
+    }
+    else if (shape_sup1 - shape_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
+    {
+      contact.cc_time[i] = 1;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
+    }
     else
+    {
+      // Between: interpolate based on distances from average contact point to support points
+      double l0c = (pt_world - Eigen::Vector3d(pt_world0)).norm();
+      double l1c = (pt_world - Eigen::Vector3d(pt_world1)).norm();
+
+      // Update nearest_points_local to averaged support point (matching Bullet)
+      Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
+      Eigen::Isometry3d shape_tf0;
+      shape_tf0.linear() = tf_world0.getRotation();
+      shape_tf0.translation() = tf_world0.getTranslation();
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * (((pt_local0 + pt_local1) / 2.0).eval()));
+
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
+
+      if (l0c + l1c < COAL_LENGTH_TOLERANCE)
+        contact.cc_time[i] = 0.5;
+      else
+        contact.cc_time[i] = l0c / (l0c + l1c);
+    }
   }
 }
 
