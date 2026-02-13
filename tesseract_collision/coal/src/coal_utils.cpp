@@ -46,6 +46,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/shape/convex.h>
 #include <coal/data_types.h>
 #include <coal/octree.h>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -294,6 +295,58 @@ inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
          !isContactAllowed(cd1->getName(), cd2->getName(), validator, verbose);
 }
 
+/**
+ * @brief Populate continuous collision fields (cc_time, cc_type, cc_transform) on a ContactResult.
+ *
+ * For each collision object that wraps a CastHullShape (i.e. is part of a continuous/cast check),
+ * this computes:
+ *  - cc_transform: the end-of-motion world pose (pose1 * castTransform = pose2)
+ *  - cc_time: linear interpolation parameter along the motion at which contact occurs
+ *  - cc_type: classification (Time0, Time1, or Between)
+ *
+ * For objects that are not CastHullShapes (static objects), the fields are left at their defaults.
+ */
+void populateContinuousCollisionFields(ContactResult& contact,
+                                       const coal::CollisionObject* o1,
+                                       const coal::CollisionObject* o2)
+{
+  const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
+  for (std::size_t i = 0; i < 2; ++i)
+  {
+    const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometry().get());
+    if (cast_shape == nullptr)
+      continue;
+
+    // cc_transform = pose2 = pose1 * relative_motion
+    // castTransform stores tf1.inverseTimes(tf2), so pose1 * castTransform = pose2
+    const auto& ct = cast_shape->getCastTransform();
+    Eigen::Isometry3d cast_eigen;
+    cast_eigen.linear() = ct.getRotation();
+    cast_eigen.translation() = ct.getTranslation();
+    contact.cc_transform[i] = contact.transform[i] * cast_eigen;
+
+    // cc_time: project the contact point onto the linear motion trajectory
+    // Position at t=0 and t=1 for the local contact point
+    const Eigen::Vector3d p_t0 = contact.transform[i] * contact.nearest_points_local[i];
+    const Eigen::Vector3d p_t1 = contact.cc_transform[i] * contact.nearest_points_local[i];
+    const Eigen::Vector3d motion = p_t1 - p_t0;
+    const double motion_sq = motion.squaredNorm();
+    if (motion_sq > 1e-12)
+      contact.cc_time[i] = std::clamp(motion.dot(contact.nearest_points[i] - p_t0) / motion_sq, 0.0, 1.0);
+    else
+      contact.cc_time[i] = 0.0;
+
+    // cc_type
+    constexpr double eps = 1e-3;
+    if (contact.cc_time[i] <= eps)
+      contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
+    else if (contact.cc_time[i] >= 1.0 - eps)
+      contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
+    else
+      contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
+  }
+}
+
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
@@ -388,6 +441,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.distance = coal_contact.penetration_depth;
     contact.normal = coal_contact.normal;
 
+    populateContinuousCollisionFields(contact, o1, o2);
     const auto it = cdata->res->find(link_pair);
     const bool found = (it != cdata->res->end() && !it->second.empty());
 
