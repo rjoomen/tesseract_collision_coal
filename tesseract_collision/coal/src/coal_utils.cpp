@@ -289,53 +289,21 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 
 constexpr double COAL_SUPPORT_FUNC_TOLERANCE = 0.01;
 constexpr double COAL_LENGTH_TOLERANCE = 0.001;
-constexpr double COAL_EPSILON = 1e-6;
 
 /**
- * @brief Compute the average support point for a COAL shape along a direction.
+ * @brief Compute the support point for a COAL shape along a direction.
  *
- * For polyhedral shapes (ConvexBase32), iterates all vertices and averages those
- * at maximum support (within COAL_EPSILON), since multiple vertices can share the
- * same support plane. For all other shapes (Box, Sphere, Cylinder, etc.), delegates
- * to coal::details::getSupport which returns the single support point.
- * Matches Bullet's GetAverageSupport behavior.
+ * Delegates to coal::details::getSupport which handles all shape types
+ * including ConvexBase32 (returns a single extreme vertex).
  */
-void GetAverageSupport(const coal::ShapeBase* shape,
-                       const coal::Vec3s& normal,
-                       double& out_support,
-                       coal::Vec3s& out_point)
+void GetSupport(const coal::ShapeBase* shape,
+                const coal::Vec3s& normal,
+                double& out_support,
+                coal::Vec3s& out_point)
 {
-  if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape))
-  {
-    coal::Vec3s pt_sum(0, 0, 0);
-    double pt_count = 0;
-    double max_support = -1e10;
-
-    const auto& pts = *convex->points;
-    for (std::size_t j = 0; j < pts.size(); ++j)
-    {
-      double sup = pts[j].dot(normal);
-      if (sup > max_support + COAL_EPSILON)
-      {
-        pt_count = 1;
-        pt_sum = pts[j];
-        max_support = sup;
-      }
-      else if (sup >= max_support - COAL_EPSILON)
-      {
-        pt_count += 1;
-        pt_sum += pts[j];
-      }
-    }
-    out_support = max_support;
-    out_point = pt_sum / pt_count;
-  }
-  else
-  {
-    int hint = 0;
-    out_point = coal::details::getSupport(shape, normal, hint);
-    out_support = normal.dot(out_point);
-  }
+  int hint = 0;
+  out_point = coal::details::getSupport(shape, normal, hint);
+  out_support = normal.dot(out_point);
 }
 
 inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
@@ -390,16 +358,16 @@ void populateContinuousCollisionFields(ContactResult& contact,
     coal::Vec3s normal_local0 = tf_world0.getRotation().transpose() * normal_world;
     coal::Vec3s normal_local1 = tf_world1.getRotation().transpose() * normal_world;
 
-    // Get average support points on the underlying shape at both local normals
+    // Get support points on the underlying shape at both local normals
     const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
     coal::Vec3s pt_local0;
     double sup_local0 = 0;
-    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0);
+    GetSupport(underlying, normal_local0, sup_local0, pt_local0);
     coal::Vec3s pt_world0 = tf_world0.transform(pt_local0);
 
     coal::Vec3s pt_local1;
     double sup_local1 = 0;
-    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
+    GetSupport(underlying, normal_local1, sup_local1, pt_local1);
     coal::Vec3s pt_world1 = tf_world1.transform(pt_local1);
 
     // Compare support projections along the contact normal
