@@ -81,6 +81,8 @@ private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
+  /// @brief Vertices of the underlying shape, extracted once at construction.
+  std::vector<coal::Vec3s> base_vertices_;
   /// @brief An array of the points of the swept polytope.
   std::shared_ptr<std::vector<coal::Vec3s>> swept_vertices_;
 

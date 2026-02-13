@@ -63,9 +63,10 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
   : shape_(std::move(shape))
   , castTransform_(castTransform)
   , castTransformInv_(coal::Transform3s(castTransform).inverse())
+  , base_vertices_(extractVertices(shape_.get()))
 {
   swept_vertices_ = std::make_shared<std::vector<coal::Vec3s>>();
-  // Compute swept vertices
+  // Compute swept vertices from cached base vertices
   computeSweptVertices();
 }
 
@@ -141,20 +142,18 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 
 void CastHullShape::computeSweptVertices()
 {
-  // Extract vertices from the underlying shape
-  std::vector<coal::Vec3s> baseVertices = extractVertices(shape_.get());
-
-  // Store both start and end positions
+  // Reuse cached base_vertices_ (extracted once at construction) to avoid
+  // re-tessellating curved shapes on every cast transform update.
   swept_vertices_->clear();
-  swept_vertices_->reserve(baseVertices.size() * 2);
+  swept_vertices_->reserve(base_vertices_.size() * 2);
 
   // Add vertices at starting position
-  for (const auto& vertex : baseVertices)
+  for (const auto& vertex : base_vertices_)
   {
     swept_vertices_->push_back(vertex);
   }
   // Add vertices at ending position (after transform)
-  for (const auto& vertex : baseVertices)
+  for (const auto& vertex : base_vertices_)
   {
     coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
     swept_vertices_->push_back(transformed_vertex);
