@@ -294,57 +294,41 @@ constexpr double COAL_EPSILON = 1e-6;
 /**
  * @brief Compute the average support point for a COAL shape along a direction.
  *
- * For polyhedral shapes (Box, ConvexBase32), iterates all vertices and averages those
- * at maximum support (within COAL_EPSILON). For smooth shapes, returns the single
- * support point. Matches Bullet's GetAverageSupport behavior.
+ * For polyhedral shapes (ConvexBase32), iterates all vertices and averages those
+ * at maximum support (within COAL_EPSILON), since multiple vertices can share the
+ * same support plane. For all other shapes (Box, Sphere, Cylinder, etc.), delegates
+ * to coal::details::getSupport which returns the single support point.
+ * Matches Bullet's GetAverageSupport behavior.
  */
 void GetAverageSupport(const coal::ShapeBase* shape,
                        const coal::Vec3s& normal,
                        double& out_support,
                        coal::Vec3s& out_point)
 {
-  coal::Vec3s pt_sum(0, 0, 0);
-  double pt_count = 0;
-  double max_support = -1e10;
+  if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape))
+  {
+    coal::Vec3s pt_sum(0, 0, 0);
+    double pt_count = 0;
+    double max_support = -1e10;
 
-  // Lambda to iterate a set of vertices and compute average support
-  auto average_vertices = [&](const auto& vertices, std::size_t count) {
-    for (std::size_t j = 0; j < count; ++j)
+    const auto& pts = *convex->points;
+    for (std::size_t j = 0; j < pts.size(); ++j)
     {
-      double sup = vertices[j].dot(normal);
+      double sup = pts[j].dot(normal);
       if (sup > max_support + COAL_EPSILON)
       {
         pt_count = 1;
-        pt_sum = vertices[j];
+        pt_sum = pts[j];
         max_support = sup;
       }
       else if (sup >= max_support - COAL_EPSILON)
       {
         pt_count += 1;
-        pt_sum += vertices[j];
+        pt_sum += pts[j];
       }
     }
     out_support = max_support;
     out_point = pt_sum / pt_count;
-  };
-
-  if (const auto* box = dynamic_cast<const coal::Box*>(shape))
-  {
-    const coal::Vec3s& h = box->halfSide;
-    const std::array<coal::Vec3s, 8> verts = { coal::Vec3s(-h[0], -h[1], -h[2]),
-                                                coal::Vec3s(h[0], -h[1], -h[2]),
-                                                coal::Vec3s(-h[0], h[1], -h[2]),
-                                                coal::Vec3s(h[0], h[1], -h[2]),
-                                                coal::Vec3s(-h[0], -h[1], h[2]),
-                                                coal::Vec3s(h[0], -h[1], h[2]),
-                                                coal::Vec3s(-h[0], h[1], h[2]),
-                                                coal::Vec3s(h[0], h[1], h[2]) };
-    average_vertices(verts, 8);
-  }
-  else if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape))
-  {
-    const auto& pts = *convex->points;
-    average_vertices(pts, pts.size());
   }
   else
   {
