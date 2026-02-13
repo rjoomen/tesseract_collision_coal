@@ -98,6 +98,24 @@ void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Tr
     coal::computeBV<coal::AABB>(*ellipsoid, tf, bv_original);
     coal::computeBV<coal::AABB>(*ellipsoid, tf * castTransform, bv_cast);
   }
+  else
+  {
+    // Fallback for any unhandled shape type: build the AABB from the
+    // pre-computed swept vertices, which cover all supported shapes.
+    const auto& vertices = s.getSweptVertices();
+    if (vertices.empty())
+    {
+      CONSOLE_BRIDGE_logWarn("CastHullShape computeBV: unhandled shape type and no swept vertices available");
+      bv = coal::AABB();
+      return;
+    }
+    bv = coal::AABB(tf.transform(vertices[0]));
+    for (size_t i = 1; i < vertices.size(); ++i)
+    {
+      bv += tf.transform(vertices[i]);
+    }
+    return;
+  }
 
   // Combine both AABBs to get the swept volume AABB
   bv = bv_original + bv_cast;

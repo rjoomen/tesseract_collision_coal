@@ -75,6 +75,8 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
+  const std::vector<coal::Vec3s>& getSweptVertices() const { return *swept_vertices_; }
+
   void computeSweptVertices();
 
 private:
