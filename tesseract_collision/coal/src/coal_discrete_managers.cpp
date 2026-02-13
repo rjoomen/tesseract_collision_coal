@@ -42,6 +42,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <unordered_set>
+
 #include <tesseract_collision/coal/coal_discrete_managers.h>
 
 namespace tesseract_collision::tesseract_collision_coal
@@ -119,20 +121,20 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
 
     std::vector<coal::CollisionObject*> static_objs;
     static_manager_->getObjects(static_objs);
+    std::unordered_set<coal::CollisionObject*> static_set(static_objs.begin(), static_objs.end());
 
     std::vector<coal::CollisionObject*> dynamic_objs;
     dynamic_manager_->getObjects(dynamic_objs);
+    std::unordered_set<coal::CollisionObject*> dynamic_set(dynamic_objs.begin(), dynamic_objs.end());
 
     // Must check if object exists in the manager before calling unregister.
     // If it does not exist and unregister is called it is undefined behavior
     for (const auto& co : objects)
     {
-      auto static_it = std::find(static_objs.begin(), static_objs.end(), co.get());
-      if (static_it != static_objs.end())
+      if (static_set.count(co.get()) != 0)
         static_manager_->unregisterObject(co.get());
 
-      auto dynamic_it = std::find(dynamic_objs.begin(), dynamic_objs.end(), co.get());
-      if (dynamic_it != dynamic_objs.end())
+      if (dynamic_set.count(co.get()) != 0)
         dynamic_manager_->unregisterObject(co.get());
     }
 
