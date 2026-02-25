@@ -195,9 +195,8 @@ void runDiscreteProfile(bool use_single_link, bool use_convex_mesh, double conta
   std::vector<long> checker_contacts = { 0, 0, 0, 0 };
 
   std::printf("Total number of shape: %d\n", int(DIM * DIM * DIM));
-  //  for (std::size_t i = 0; i < checkers.size(); ++i)
   ContactResultMap result;
-  for (std::size_t i = 0; i < 2; ++i)
+  for (std::size_t i = 0; i < checkers.size(); ++i)
   {
     addCollisionObjects(*checkers[i], use_single_link, use_convex_mesh);
     checkers[i]->setCollisionMarginData(CollisionMarginData(contact_distance));
@@ -236,9 +235,8 @@ void runContinuousProfile(bool use_single_link, bool use_convex_mesh, double con
   delta_pose.translation() = Eigen::Vector3d(0.5, 0.5, 0.5);
 
   std::printf("Total number of shape: %d\n", int(DIM * DIM * DIM));
-  //  for (std::size_t i = 0; i < checkers.size(); ++i)
   ContactResultMap result;
-  for (std::size_t i = 0; i < 2; ++i)
+  for (std::size_t i = 0; i < checkers.size(); ++i)
   {
     addCollisionObjects(*checkers[i], use_single_link, use_convex_mesh);
     checkers[i]->setCollisionMarginData(CollisionMarginData(contact_distance));
