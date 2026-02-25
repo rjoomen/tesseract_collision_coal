@@ -371,8 +371,6 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
   {
     COW::Ptr& cow = it->second;
 
-    it->second->setCollisionObjectsTransform(pose1);
-
     // Convert to coal::Transform3s format
     const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
     const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
@@ -380,6 +378,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
     // Calculate relative transform directly in Coal format
     const auto relative_transform = tf1.inverseTimes(tf2);
 
+    // Update cast transforms first so computeLocalAABB reflects the swept volume
     for (auto& co : cow->getCollisionObjects())
     {
       if (auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get()))
@@ -389,14 +388,17 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
       }
     }
 
-    // Now update Broadphase AABB
-    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+    // Now set the world transform (calls updateAABB which uses the updated aabb_local)
+    cow->setCollisionObjectsTransform(pose1);
+
+    // Update Broadphase AABB
+    if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
-      static_manager_->update(it->second->getCollisionObjectsRaw());
+      static_manager_->update(cow->getCollisionObjectsRaw());
     }
     else
     {
-      dynamic_manager_->update(it->second->getCollisionObjectsRaw());
+      dynamic_manager_->update(cow->getCollisionObjectsRaw());
     }
   }
 }

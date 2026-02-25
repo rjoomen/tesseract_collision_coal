@@ -138,6 +138,7 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
   computeSweptVertices();
+  computeLocalAABB();
 }
 
 void CastHullShape::computeSweptVertices()
