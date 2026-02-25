@@ -65,9 +65,10 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
   , castTransformInv_(coal::Transform3s(castTransform).inverse())
   , base_vertices_(extractVertices(shape_.get()))
 {
-  swept_vertices_ = std::make_shared<std::vector<coal::Vec3s>>();
-  // Compute swept vertices from cached base vertices
+  // ConvexBase32::points stores the swept polytope vertices
+  points = std::make_shared<std::vector<coal::Vec3s>>();
   computeSweptVertices();
+  updateConvexMembers();
 }
 
 void CastHullShape::computeLocalAABB()
@@ -88,38 +89,34 @@ void CastHullShape::computeLocalAABB()
   aabb_radius = (aabb_local.min_ - aabb_center).norm();
 }
 
+// NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+coal::ShapeBase* CastHullShape::clone() const
+{
+  // Build from scratch to ensure ConvexBase32::points is properly set up
+  return new CastHullShape(shape_, castTransform_);
+}
+
 double CastHullShape::computeVolume() const
 {
-  // For swept shapes, we need to compute the volume of the convex hull
-  // of the original shape and its transformed position.
-  // This is a complex geometric problem, so we'll use a reasonable approximation.
-
-  // Get the base volume
   double baseVolume = shape_->computeVolume();
 
-  // Check if transform is identity (no sweeping needed)
   coal::Vec3s translation = castTransform_.getTranslation();
   double translation_length = translation.norm();
 
-  // Check for rotation component
   coal::Matrix3s rotation = castTransform_.getRotation();
   bool has_rotation = !rotation.isIdentity(1e-6);
 
-  // If no transformation, return base volume
   if (translation_length < 1e-6 && !has_rotation)
   {
     return baseVolume;
   }
 
-  // For approximation, compute the volume using the swept AABB
-  // We need to compute the AABB of the swept shape
   coal::Transform3s identity = coal::Transform3s::Identity();
   coal::AABB swept_aabb;
   coal::computeBV<coal::AABB, CastHullShape>(*this, identity, swept_aabb);
 
   double sweptVolume = swept_aabb.volume();
 
-  // The swept volume should be at least the base volume
   return std::max(baseVolume, sweptVolume);
 }
 
@@ -138,6 +135,7 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
   computeSweptVertices();
+  updateConvexMembers();
   computeLocalAABB();
 }
 
@@ -145,20 +143,30 @@ void CastHullShape::computeSweptVertices()
 {
   // Reuse cached base_vertices_ (extracted once at construction) to avoid
   // re-tessellating curved shapes on every cast transform update.
-  swept_vertices_->clear();
-  swept_vertices_->reserve(base_vertices_.size() * 2);
+  points->clear();
+  points->reserve(base_vertices_.size() * 2);
 
   // Add vertices at starting position
   for (const auto& vertex : base_vertices_)
   {
-    swept_vertices_->push_back(vertex);
+    points->push_back(vertex);
   }
   // Add vertices at ending position (after transform)
   for (const auto& vertex : base_vertices_)
   {
     coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
-    swept_vertices_->push_back(transformed_vertex);
+    points->push_back(transformed_vertex);
   }
+}
+
+void CastHullShape::updateConvexMembers()
+{
+  num_points = static_cast<unsigned int>(points->size());
+  center = coal::Vec3s::Zero();
+  for (const auto& p : *points)
+    center += p;
+  if (num_points > 0)
+    center /= static_cast<double>(num_points);
 }
 
 // Extract vertices based on shape type
@@ -177,10 +185,6 @@ std::vector<coal::Vec3s> CastHullShape::extractVertices(const coal::ShapeBase* g
     return extractVerticesFromCapsule(capsule);
   if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(geometry))
     return extractVerticesFromConvex(convex);
-
-  // Ellipsoid
-  // Halfspace
-  // Plane
 
   // Fallback: use AABB corners
   coal::AABB aabb = geometry->aabb_local;

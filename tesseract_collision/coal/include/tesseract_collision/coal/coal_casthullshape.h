@@ -53,7 +53,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-class CastHullShape : public coal::ShapeBase
+class CastHullShape : public coal::ConvexBase32
 {
 public:
   CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
@@ -61,7 +61,7 @@ public:
   void computeLocalAABB() override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  coal::ShapeBase* clone() const override { return new CastHullShape(*this); }
+  coal::ShapeBase* clone() const override;
 
   double computeVolume() const override;
 
@@ -75,7 +75,7 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
-  const std::vector<coal::Vec3s>& getSweptVertices() const { return *swept_vertices_; }
+  const std::vector<coal::Vec3s>& getSweptVertices() const { return *points; }
 
   void computeSweptVertices();
 
@@ -85,8 +85,9 @@ private:
   coal::Transform3s castTransformInv_;
   /// @brief Vertices of the underlying shape, extracted once at construction.
   std::vector<coal::Vec3s> base_vertices_;
-  /// @brief An array of the points of the swept polytope.
-  std::shared_ptr<std::vector<coal::Vec3s>> swept_vertices_;
+
+  /// @brief Update ConvexBase32 members (num_points, center) from current points.
+  void updateConvexMembers();
 
   // Helper methods to extract vertices based on shape type
   std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
