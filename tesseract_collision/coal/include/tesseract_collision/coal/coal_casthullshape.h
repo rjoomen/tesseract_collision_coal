@@ -61,7 +61,7 @@ public:
   void computeLocalAABB() override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  coal::ShapeBase* clone() const override;
+  CastHullShape* clone() const override;
 
   double computeVolume() const override;
 

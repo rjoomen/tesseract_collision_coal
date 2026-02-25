@@ -90,7 +90,7 @@ void CastHullShape::computeLocalAABB()
 }
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-coal::ShapeBase* CastHullShape::clone() const
+CastHullShape* CastHullShape::clone() const
 {
   // Build from scratch to ensure ConvexBase32::points is properly set up
   return new CastHullShape(shape_, castTransform_);
