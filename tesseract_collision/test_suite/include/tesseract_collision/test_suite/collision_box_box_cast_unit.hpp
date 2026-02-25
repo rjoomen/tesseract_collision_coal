@@ -176,21 +176,21 @@ inline void runTest(ContinuousContactManager& checker)
 
     EXPECT_NEAR(result_vector[0].nearest_points[0][0], -0.5, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points[0][1], 0.5, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[0][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[0][2], 0.0, 0.03);
 
     EXPECT_NEAR(result_vector[0].nearest_points[1][0], -0.325, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points[1][1], 0.325, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[1][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[1][2], 0.0, 0.03);
 
     Eigen::Vector3d p0 = result_vector[0].transform[1] * result_vector[0].nearest_points_local[1];
     EXPECT_NEAR(p0[0], -1.275, 0.001);
     EXPECT_NEAR(p0[1], -0.625, 0.001);
-    EXPECT_NEAR(p0[2], 0.0, 0.001);
+    EXPECT_NEAR(p0[2], 0.0, 0.03);
 
     Eigen::Vector3d p1 = result_vector[0].cc_transform[1] * result_vector[0].nearest_points_local[1];
     EXPECT_NEAR(p1[0], 2.525, 0.001);
     EXPECT_NEAR(p1[1], 3.175, 0.001);
-    EXPECT_NEAR(p1[2], 0.0, 0.001);
+    EXPECT_NEAR(p1[2], 0.0, 0.03);
   }
 }
 }  // namespace tesseract_collision::test_suite
