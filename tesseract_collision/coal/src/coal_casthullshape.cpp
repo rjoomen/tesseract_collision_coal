@@ -65,10 +65,7 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
   , castTransformInv_(coal::Transform3s(castTransform).inverse())
   , base_vertices_(extractVertices(shape_.get()))
 {
-  // ConvexBase32::points stores the swept polytope vertices
-  points = std::make_shared<std::vector<coal::Vec3s>>();
-  computeSweptVertices();
-  updateConvexMembers();
+  buildConvexHull();
 }
 
 void CastHullShape::computeLocalAABB()
@@ -134,39 +131,30 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
-  computeSweptVertices();
-  updateConvexMembers();
+  buildConvexHull();
   computeLocalAABB();
 }
 
-void CastHullShape::computeSweptVertices()
+void CastHullShape::buildConvexHull()
 {
-  // Reuse cached base_vertices_ (extracted once at construction) to avoid
-  // re-tessellating curved shapes on every cast transform update.
-  points->clear();
-  points->reserve(base_vertices_.size() * 2);
+  // Build swept vertices: base vertices at start + transformed at end
+  auto swept_pts = std::make_shared<std::vector<coal::Vec3s>>();
+  swept_pts->reserve(base_vertices_.size() * 2);
+  for (const auto& v : base_vertices_)
+    swept_pts->push_back(v);
+  for (const auto& v : base_vertices_)
+    swept_pts->push_back(castTransform_.transform(v));
 
-  // Add vertices at starting position
-  for (const auto& vertex : base_vertices_)
-  {
-    points->push_back(vertex);
-  }
-  // Add vertices at ending position (after transform)
-  for (const auto& vertex : base_vertices_)
-  {
-    coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
-    points->push_back(transformed_vertex);
-  }
-}
+  auto n = static_cast<unsigned int>(swept_pts->size());
 
-void CastHullShape::updateConvexMembers()
-{
-  num_points = static_cast<unsigned int>(points->size());
-  center = coal::Vec3s::Zero();
-  for (const auto& p : *points)
-    center += p;
-  if (num_points > 0)
-    center /= static_cast<double>(num_points);
+  // Compute the convex hull with triangles so that fillNeighbors() is called
+  // inside the ConvexTpl constructor, populating the neighbors data needed by
+  // coal's GJK hill-climbing support function (getShapeSupportLog).
+  std::unique_ptr<coal::ConvexBase32> hull(coal::ConvexBase32::convexHull(swept_pts, n, true));
+
+  // Copy all ConvexTpl/ConvexBaseTpl members from the hull into this object.
+  auto* conv_hull = static_cast<coal::ConvexTpl<coal::Triangle32>*>(hull.get());
+  static_cast<coal::ConvexTpl<coal::Triangle32>&>(*this) = *conv_hull;
 }
 
 // Extract vertices based on shape type

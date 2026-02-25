@@ -45,6 +45,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <console_bridge/console.h>
 #include <coal/shape/geometric_shapes.h>
+#include <coal/shape/convex.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -53,7 +54,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-class CastHullShape : public coal::ConvexBase32
+class CastHullShape : public coal::ConvexTpl<coal::Triangle32>
 {
 public:
   CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
@@ -77,8 +78,6 @@ public:
 
   const std::vector<coal::Vec3s>& getSweptVertices() const { return *points; }
 
-  void computeSweptVertices();
-
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
@@ -86,8 +85,9 @@ private:
   /// @brief Vertices of the underlying shape, extracted once at construction.
   std::vector<coal::Vec3s> base_vertices_;
 
-  /// @brief Update ConvexBase32 members (num_points, center) from current points.
-  void updateConvexMembers();
+  /// @brief Compute the convex hull of the swept vertices, populating points,
+  /// polygons, neighbors, and support warm-start data.
+  void buildConvexHull();
 
   // Helper methods to extract vertices based on shape type
   std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
