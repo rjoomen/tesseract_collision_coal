@@ -168,6 +168,18 @@ void getShapeSupportSet(const CastHullShape* cast_hull_shape,
       cast_hull_shape->getUnderlyingShape().get(), support_set, hint, support_data, num_sampled_supports, tol);
 }
 
+// Explicit template instantiations for use from other translation units
+template void getShapeSupport<SupportOptions::NoSweptSphere>(const CastHullShape*,
+                                                             const Vec3s&,
+                                                             Vec3s&,
+                                                             int&,
+                                                             ShapeSupportData&);
+template void getShapeSupport<SupportOptions::WithSweptSphere>(const CastHullShape*,
+                                                               const Vec3s&,
+                                                               Vec3s&,
+                                                               int&,
+                                                               ShapeSupportData&);
+
 }  // namespace details
 
 }  // namespace coal
