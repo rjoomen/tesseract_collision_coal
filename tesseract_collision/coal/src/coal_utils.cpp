@@ -431,8 +431,9 @@ void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
   coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
       cast_hull, dir, support0, hint[0], data[0]);
 
-  // Shape1 is the other shape — use coal's polymorphic support
-  coal::Vec3s dir1 = md.oR1.transpose() * dir;
+  // Shape1 is the other shape — negate direction per Minkowski difference convention
+  // (coal's getSupportTpl uses -dir for shape1: support1 = s_S1(-dir))
+  coal::Vec3s dir1 = -(md.oR1.transpose() * dir);
   support1 = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(md.shapes[1], dir1, hint[1]);
   support1 = md.oR1 * support1 + md.ot1;
 }
