@@ -417,7 +417,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
  *
  * Uses the Schulman et al. (2013) approach: the support of a swept shape is
  * max(support_start(d), support_end(d)) using the underlying shape's exact
- * support function. Shape0 is always the CastHullShape.
+ * support function. Shape0 is always the CastHullShape; shape1 may also be one.
  */
 void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
                             const coal::Vec3s& dir,
@@ -427,14 +427,28 @@ void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
                             coal::details::ShapeSupportData data[2])
 {
   // Shape0 is the CastHullShape — use the Schulman support function
-  const auto* cast_hull = static_cast<const CastHullShape*>(md.shapes[0]);
+  const auto* cast_hull0 = static_cast<const CastHullShape*>(md.shapes[0]);
   coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-      cast_hull, dir, support0, hint[0], data[0]);
+      cast_hull0, dir, support0, hint[0], data[0]);
 
-  // Shape1 is the other shape — negate direction per Minkowski difference convention
+  // Negate direction for shape1 per Minkowski difference convention
   // (coal's getSupportTpl uses -dir for shape1: support1 = s_S1(-dir))
-  coal::Vec3s dir1 = -(md.oR1.transpose() * dir);
-  support1 = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(md.shapes[1], dir1, hint[1]);
+  coal::Vec3s neg_dir1 = -(md.oR1.transpose() * dir);
+
+  // Check if shape1 is also a CastHullShape — if so, use Schulman support
+  // directly to avoid incorrect dispatch through coal's generic getSupport
+  // (CastHullShape is a ConvexBase32 which coal's dispatcher may mishandle)
+  const auto* cast_hull1 = dynamic_cast<const CastHullShape*>(md.shapes[1]);
+  if (cast_hull1 != nullptr)
+  {
+    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+        cast_hull1, neg_dir1, support1, hint[1], data[1]);
+  }
+  else
+  {
+    support1 = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(
+        md.shapes[1], neg_dir1, hint[1]);
+  }
   support1 = md.oR1 * support1 + md.ot1;
 }
 
