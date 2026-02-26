@@ -444,9 +444,12 @@ struct ContactTestDataWrapper : ContactTestData
                          ContactRequest req,
                          ContactResultMap& res,
                          CollisionCacheMap& collision_cache)
-    : ContactTestData(std::move(collision_margin_data), std::move(validator), std::move(req), res)
-    , collision_cache(&collision_cache)
+    : collision_cache(&collision_cache)
   {
+    this->collision_margin_data = std::move(collision_margin_data);
+    this->validator = std::move(validator);
+    this->req = std::move(req);
+    this->res = &res;
   }
 
   CollisionCacheMap* collision_cache;
