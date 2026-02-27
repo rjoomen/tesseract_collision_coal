@@ -43,6 +43,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/collision.h>
 #include <coal/distance.h>
 #include <console_bridge/console.h>
+#include <cmath>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -148,11 +149,24 @@ void getShapeSupport(const CastHullShape* cast_hull_shape,
   // Transform the local end support to global coordinates
   supportEnd = castTransform.transform(supportEndLocal);
 
-  // Return the point with maximum projection in the direction
+  // Return the point with maximum projection in the direction.
+  // When both projections are (nearly) equal, return the average of the two
+  // support points. This is geometrically valid: the midpoint lies on the
+  // boundary of the convex hull and achieves the same max projection. Using the
+  // average avoids returning the same point for many nearby directions (which
+  // happens for shapes with continuous support, like Sphere, when the sweep
+  // direction is perpendicular to the query direction). Without averaging, GJK
+  // receives duplicate vertices and its simplex degenerates, causing convergence
+  // failure.
   double dotStart = dir.dot(supportStart);
   double dotEnd = dir.dot(supportEnd);
+  double dotDiff = dotStart - dotEnd;
 
-  support = (dotStart > dotEnd) ? supportStart : supportEnd;
+  constexpr double kTieEpsilon = 1e-10;
+  if (std::abs(dotDiff) < kTieEpsilon)
+    support = (supportStart + supportEnd) / 2.0;
+  else
+    support = (dotDiff > 0) ? supportStart : supportEnd;
 }
 
 template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)

@@ -514,8 +514,11 @@ bool castHullCollide(coal::CollisionObject* o1,
   coal::details::GJK gjk(request.gjk_max_iterations, request.gjk_tolerance);
   gjk.setDistanceEarlyBreak(request.distance_upper_bound);
 
-  // Compute initial guess
-  coal::Vec3s guess(1, 0, 0);
+  // Compute initial guess — use the center difference between shapes as a
+  // better starting direction than an arbitrary axis.
+  coal::Vec3s guess = tf0.getTranslation() - tf1.getTranslation();
+  if (guess.squaredNorm() < 1e-12)
+    guess = coal::Vec3s(1, 0, 0);
   coal::support_func_guess_t support_hint = coal::support_func_guess_t::Zero();
   if (request.gjk_initial_guess == coal::CachedGuess)
   {
