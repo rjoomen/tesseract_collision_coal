@@ -390,9 +390,13 @@ void populateContinuousCollisionFields(ContactResult& contact,
     }
     else
     {
-      // Between: interpolate based on distances from average contact point to support points
-      double l0c = (pt_world - Eigen::Vector3d(pt_world0)).norm();
-      double l1c = (pt_world - Eigen::Vector3d(pt_world1)).norm();
+      // Between: interpolate cc_time by projecting the contact point onto the
+      // sweep trajectory of the support point (pt_world0 → pt_world1).
+      // Using the projection along this axis instead of Euclidean distance avoids
+      // skew from off-axis components of the support point (e.g., tessellated mesh
+      // vertices that don't lie exactly on the contact normal axis).
+      Eigen::Vector3d sweep_vec = Eigen::Vector3d(pt_world1) - Eigen::Vector3d(pt_world0);
+      double sweep_len_sq = sweep_vec.squaredNorm();
 
       // Update nearest_points_local to averaged support point (matching Bullet)
       Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
@@ -403,10 +407,10 @@ void populateContinuousCollisionFields(ContactResult& contact,
 
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      if (l0c + l1c < COAL_LENGTH_TOLERANCE)
+      if (sweep_len_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = l0c / (l0c + l1c);
+        contact.cc_time[i] = sweep_vec.dot(pt_world - Eigen::Vector3d(pt_world0)) / sweep_len_sq;
     }
   }
 }
@@ -533,10 +537,41 @@ bool castHullCollide(coal::CollisionObject* o1,
   result.cached_gjk_guess = gjk.ray.cast<coal::Scalar>();
   result.cached_support_func_guess = gjk.support_hint;
 
-  // If no collision, return
+  // If no collision, log diagnostic info and return
   if (gjk.status != coal::details::GJK::Collision &&
       gjk.status != coal::details::GJK::CollisionWithPenetrationInformation)
   {
+    const char* status_str = "Unknown";
+    switch (gjk.status)
+    {
+      case coal::details::GJK::Valid:
+        status_str = "Valid (separated)";
+        break;
+      case coal::details::GJK::Failed:
+        status_str = "Failed (iteration limit)";
+        break;
+      case coal::details::GJK::NoCollisionEarlyStopped:
+        status_str = "NoCollisionEarlyStopped";
+        break;
+      case coal::details::GJK::DidNotRun:
+        status_str = "DidNotRun";
+        break;
+      default:
+        break;
+    }
+    CONSOLE_BRIDGE_logDebug(
+        "castHullCollide: GJK returned %s (distance=%.6f). "
+        "shape0=%s, shape1=%s, tf0=(%.3f,%.3f,%.3f), tf1=(%.3f,%.3f,%.3f)",
+        status_str,
+        static_cast<double>(gjk.distance),
+        (cast0 != nullptr ? "CastHullShape" : "other"),
+        (cast1 != nullptr ? "CastHullShape" : "other"),
+        tf0.getTranslation()[0],
+        tf0.getTranslation()[1],
+        tf0.getTranslation()[2],
+        tf1.getTranslation()[0],
+        tf1.getTranslation()[1],
+        tf1.getTranslation()[2]);
     return false;
   }
 
