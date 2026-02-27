@@ -4,6 +4,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <string>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/continuous_contact_manager.h>
@@ -140,6 +141,8 @@ inline void runTest(ContinuousContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the collision object transforms
+  // static_box_link: unit box at origin (identity transform)
+  // moving_box_link: 0.25^3 box sweeping from (-1.9, 0, 0) to (1.9, 3.8, 0)
   std::vector<std::string> names = { "static_box_link" };
   tesseract_common::VectorIsometry3d transforms = { Eigen::Isometry3d::Identity() };
   checker.setCollisionObjectsTransform(names, transforms);
@@ -157,40 +160,116 @@ inline void runTest(ContinuousContactManager& checker)
   checker.setCollisionObjectsTransform({ "moving_box_link" }, start_poses, end_poses);
 
   std::vector<ContactTestType> test_types = { ContactTestType::ALL, ContactTestType::CLOSEST, ContactTestType::FIRST };
+  std::vector<std::string> test_type_names = { "ALL", "CLOSEST", "FIRST" };
 
   // Perform collision check
-  for (const auto& t : test_types)
+  for (std::size_t ti = 0; ti < test_types.size(); ++ti)
   {
+    SCOPED_TRACE("ContactTestType: " + test_type_names[ti]);
+
     ContactResultMap result;
-    checker.contactTest(result, ContactRequest(t));
+    checker.contactTest(result, ContactRequest(test_types[ti]));
 
     ContactResultVector result_vector;
     result.flattenMoveResults(result_vector);
 
-    EXPECT_TRUE(!result_vector.empty());
-    EXPECT_NEAR(result_vector[0].distance, -0.2475, 0.001);
-    EXPECT_NEAR(result_vector[0].cc_time[0], -1.0, 0.001);
-    EXPECT_NEAR(result_vector[0].cc_time[1], 0.25, 0.001);
-    EXPECT_TRUE(result_vector[0].cc_type[0] == ContinuousCollisionType::CCType_None);
-    EXPECT_TRUE(result_vector[0].cc_type[1] == ContinuousCollisionType::CCType_Between);
+    ASSERT_FALSE(result_vector.empty())
+        << "No contacts found for moving_box sweeping from (-1.9,0,0) to (1.9,3.8,0) "
+        << "vs static unit box at origin. The swept path passes through the static box, "
+        << "so at least one contact is expected.";
 
-    EXPECT_NEAR(result_vector[0].nearest_points[0][0], -0.5, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[0][1], 0.5, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[0][2], 0.0, 0.001);
+    const auto& cr = result_vector[0];
 
-    EXPECT_NEAR(result_vector[0].nearest_points[1][0], -0.325, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[1][1], 0.325, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[1][2], 0.0, 0.001);
+    // Dump full contact state for context on any failure
+    SCOPED_TRACE(
+        "Contact[0] state:"
+        "\n  link_names: [" +
+        cr.link_names[0] + ", " + cr.link_names[1] +
+        "]"
+        "\n  distance: " +
+        std::to_string(cr.distance) +
+        "\n  normal: (" +
+        std::to_string(cr.normal[0]) + ", " + std::to_string(cr.normal[1]) + ", " + std::to_string(cr.normal[2]) +
+        ")"
+        "\n  nearest_points[0]: (" +
+        std::to_string(cr.nearest_points[0][0]) + ", " + std::to_string(cr.nearest_points[0][1]) + ", " +
+        std::to_string(cr.nearest_points[0][2]) +
+        ")"
+        "\n  nearest_points[1]: (" +
+        std::to_string(cr.nearest_points[1][0]) + ", " + std::to_string(cr.nearest_points[1][1]) + ", " +
+        std::to_string(cr.nearest_points[1][2]) +
+        ")"
+        "\n  nearest_points_local[0]: (" +
+        std::to_string(cr.nearest_points_local[0][0]) + ", " + std::to_string(cr.nearest_points_local[0][1]) + ", " +
+        std::to_string(cr.nearest_points_local[0][2]) +
+        ")"
+        "\n  nearest_points_local[1]: (" +
+        std::to_string(cr.nearest_points_local[1][0]) + ", " + std::to_string(cr.nearest_points_local[1][1]) + ", " +
+        std::to_string(cr.nearest_points_local[1][2]) +
+        ")"
+        "\n  cc_time: [" +
+        std::to_string(cr.cc_time[0]) + ", " + std::to_string(cr.cc_time[1]) +
+        "]"
+        "\n  cc_type: [" +
+        std::to_string(static_cast<int>(cr.cc_type[0])) + ", " + std::to_string(static_cast<int>(cr.cc_type[1])) +
+        "]");
 
-    Eigen::Vector3d p0 = result_vector[0].transform[1] * result_vector[0].nearest_points_local[1];
-    EXPECT_NEAR(p0[0], -1.275, 0.001);
-    EXPECT_NEAR(p0[1], -0.625, 0.001);
-    EXPECT_NEAR(p0[2], 0.0, 0.001);
+    // Penetration distance: moving box overlaps static box by ~0.2475
+    EXPECT_NEAR(cr.distance, -0.2475, 0.001)
+        << "Penetration distance between static_box (1x1x1 at origin) and "
+        << "moving_box (0.25^3 sweeping from (-1.9,0,0) to (1.9,3.8,0))";
 
-    Eigen::Vector3d p1 = result_vector[0].cc_transform[1] * result_vector[0].nearest_points_local[1];
-    EXPECT_NEAR(p1[0], 2.525, 0.001);
-    EXPECT_NEAR(p1[1], 3.175, 0.001);
-    EXPECT_NEAR(p1[2], 0.0, 0.001);
+    // cc_time[0]: static_box is not a cast shape, so cc_time should be -1 (unset)
+    EXPECT_NEAR(cr.cc_time[0], -1.0, 0.001)
+        << "static_box_link is not a cast shape, cc_time[0] should be -1 (unset)";
+
+    // cc_time[1]: moving_box collision occurs ~25% along the sweep
+    EXPECT_NEAR(cr.cc_time[1], 0.25, 0.001)
+        << "moving_box_link cc_time[1] should be ~0.25 (collision at 25% of sweep)";
+
+    // cc_type[0]: static_box is not cast, so CCType_None
+    EXPECT_EQ(cr.cc_type[0], ContinuousCollisionType::CCType_None)
+        << "static_box_link is not a cast shape, cc_type[0] should be CCType_None (0), "
+        << "got " << static_cast<int>(cr.cc_type[0]);
+
+    // cc_type[1]: moving_box collision is between start and end poses
+    EXPECT_EQ(cr.cc_type[1], ContinuousCollisionType::CCType_Between)
+        << "moving_box_link collision is between start and end, cc_type[1] should be CCType_Between (3), "
+        << "got " << static_cast<int>(cr.cc_type[1]);
+
+    // nearest_points[0]: contact point on static_box surface
+    EXPECT_NEAR(cr.nearest_points[0][0], -0.5, 0.001)
+        << "nearest_points[0].x: static_box surface at x=-0.5";
+    EXPECT_NEAR(cr.nearest_points[0][1], 0.5, 0.001)
+        << "nearest_points[0].y: static_box surface at y=0.5";
+    EXPECT_NEAR(cr.nearest_points[0][2], 0.0, 0.001)
+        << "nearest_points[0].z: contact at z=0 (2D sweep in XY plane)";
+
+    // nearest_points[1]: contact point on moving_box (swept) surface
+    EXPECT_NEAR(cr.nearest_points[1][0], -0.325, 0.001)
+        << "nearest_points[1].x: moving_box swept surface contact x";
+    EXPECT_NEAR(cr.nearest_points[1][1], 0.325, 0.001)
+        << "nearest_points[1].y: moving_box swept surface contact y";
+    EXPECT_NEAR(cr.nearest_points[1][2], 0.0, 0.001)
+        << "nearest_points[1].z: contact at z=0 (2D sweep in XY plane)";
+
+    // Verify nearest_points_local[1] maps to correct world position via start transform
+    Eigen::Vector3d p0 = cr.transform[1] * cr.nearest_points_local[1];
+    EXPECT_NEAR(p0[0], -1.275, 0.001)
+        << "transform[1] * nearest_points_local[1]: world x at start pose of moving_box";
+    EXPECT_NEAR(p0[1], -0.625, 0.001)
+        << "transform[1] * nearest_points_local[1]: world y at start pose of moving_box";
+    EXPECT_NEAR(p0[2], 0.0, 0.001)
+        << "transform[1] * nearest_points_local[1]: world z at start pose of moving_box";
+
+    // Verify nearest_points_local[1] maps to correct world position via end (cc) transform
+    Eigen::Vector3d p1 = cr.cc_transform[1] * cr.nearest_points_local[1];
+    EXPECT_NEAR(p1[0], 2.525, 0.001)
+        << "cc_transform[1] * nearest_points_local[1]: world x at end pose of moving_box";
+    EXPECT_NEAR(p1[1], 3.175, 0.001)
+        << "cc_transform[1] * nearest_points_local[1]: world y at end pose of moving_box";
+    EXPECT_NEAR(p1[2], 0.0, 0.001)
+        << "cc_transform[1] * nearest_points_local[1]: world z at end pose of moving_box";
   }
 }
 }  // namespace tesseract_collision::test_suite
