@@ -638,7 +638,11 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       col_request.enable_contact = cdata->req.calculate_penetration;
       col_request.num_max_contacts = num_contacts;
       col_request.security_margin = security_margin;
-      col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
+      // CastHullShape swept volumes can be much larger than the security_margin.
+      // Using security_margin as the GJK early-break threshold would cause GJK to
+      // return NoCollisionEarlyStopped before the simplex encloses the origin,
+      // because the Minkowski difference support values scale with the swept extent.
+      col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
       // Create a dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type)
       auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
       col_request_it =
@@ -650,7 +654,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       cached_request.enable_contact = cdata->req.calculate_penetration;
       cached_request.num_max_contacts = num_contacts;
       cached_request.security_margin = security_margin;
-      cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+      cached_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
     }
 
     auto& cached_request = col_request_it->second.second;
