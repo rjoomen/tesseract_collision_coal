@@ -45,9 +45,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/shape/geometric_shapes.h>
 #include <coal/shape/geometric_shapes_utility.h>
 #include <coal/narrowphase/support_functions.h>
-#include <coal/narrowphase/narrowphase.h>
-#include <coal/narrowphase/minkowski_difference.h>
-#include <coal/narrowphase/gjk.h>
 #include <coal/shape/convex.h>
 #include <coal/data_types.h>
 #include <coal/octree.h>
@@ -61,7 +58,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/coal/coal_utils.h>
 #include <tesseract_collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract_collision/coal/coal_casthullshape.h>
-#include <tesseract_collision/coal/coal_casthullshape_utility.h>
 #include <tesseract_geometry/geometries.h>
 
 namespace tesseract_collision::tesseract_collision_coal
@@ -412,193 +408,13 @@ void populateContinuousCollisionFields(ContactResult& contact,
   }
 }
 
-/**
- * @brief Custom GetSupportFunction for CastHullShape collisions.
- *
- * Uses the Schulman et al. (2013) approach: the support of a swept shape is
- * max(support_start(d), support_end(d)) using the underlying shape's exact
- * support function. Shape0 is always the CastHullShape; shape1 may also be one.
- */
-void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
-                            const coal::Vec3s& dir,
-                            coal::Vec3s& support0,
-                            coal::Vec3s& support1,
-                            coal::support_func_guess_t& hint,
-                            coal::details::ShapeSupportData data[2])
-{
-  // Shape0 is the CastHullShape — use the Schulman support function
-  const auto* cast_hull0 = static_cast<const CastHullShape*>(md.shapes[0]);
-  coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-      cast_hull0, dir, support0, hint[0], data[0]);
+// Note: The custom castHullGetSupportFunc and castHullCollide functions that
+// previously injected a Schulman support function into GJK have been removed.
+// CastHullShape is a ConvexBase32 with swept-hull vertices, so coal's standard
+// ComputeCollision functor handles collision detection correctly via its built-in
+// ConvexBase32 GJK support.  The Schulman support approach remains available for
+// continuous-collision-time computation in populateContinuousCollisionFields.
 
-  // Negate direction for shape1 per Minkowski difference convention
-  // (coal's getSupportTpl uses -dir for shape1: support1 = s_S1(-dir))
-  coal::Vec3s neg_dir1 = -(md.oR1.transpose() * dir);
-
-  // Check if shape1 is also a CastHullShape — if so, use Schulman support
-  // directly to avoid incorrect dispatch through coal's generic getSupport
-  // (CastHullShape is a ConvexBase32 which coal's dispatcher may mishandle)
-  const auto* cast_hull1 = dynamic_cast<const CastHullShape*>(md.shapes[1]);
-  if (cast_hull1 != nullptr)
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        cast_hull1, neg_dir1, support1, hint[1], data[1]);
-  }
-  else
-  {
-    support1 = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(
-        md.shapes[1], neg_dir1, hint[1]);
-  }
-  support1 = md.oR1 * support1 + md.ot1;
-}
-
-/**
- * @brief Perform narrowphase collision for CastHullShape using custom support functions.
- *
- * Bypasses coal::ComputeCollision to inject the Schulman support function into
- * the MinkowskiDiff, then runs GJK/EPA directly.
- *
- * @param o1 First collision object
- * @param o2 Second collision object
- * @param request The collision request parameters
- * @param result Output collision result
- * @return true if collision was detected
- */
-bool castHullCollide(coal::CollisionObject* o1,
-                     coal::CollisionObject* o2,
-                     const coal::CollisionRequest& request,
-                     coal::CollisionResult& result)
-{
-  // Determine which object is the CastHullShape; ensure it's shape0
-  const auto* geom0 = o1->collisionGeometry().get();
-  const auto* geom1 = o2->collisionGeometry().get();
-  const auto* cast0 = dynamic_cast<const CastHullShape*>(geom0);
-  const auto* cast1 = dynamic_cast<const CastHullShape*>(geom1);
-
-  bool swapped = false;
-  const coal::ShapeBase* shape0 = nullptr;
-  const coal::ShapeBase* shape1 = nullptr;
-  coal::Transform3s tf0, tf1;
-
-  if (cast0 != nullptr)
-  {
-    shape0 = static_cast<const coal::ShapeBase*>(cast0);
-    shape1 = static_cast<const coal::ShapeBase*>(geom1);
-    tf0 = o1->getTransform();
-    tf1 = o2->getTransform();
-  }
-  else
-  {
-    // cast1 must be CastHullShape; swap so CastHullShape is shape0
-    swapped = true;
-    shape0 = static_cast<const coal::ShapeBase*>(cast1);
-    shape1 = static_cast<const coal::ShapeBase*>(geom0);
-    tf0 = o2->getTransform();
-    tf1 = o1->getTransform();
-  }
-
-  // Set up MinkowskiDiff with standard transform initialization
-  coal::details::MinkowskiDiff md;
-  md.set<coal::details::SupportOptions::NoSweptSphere>(shape0, shape1, tf0, tf1);
-
-  // Replace the support function with our custom CastHullShape support
-  md.getSupportFunc = castHullGetSupportFunc;
-
-  // Configure GJK
-  coal::details::GJK gjk(request.gjk_max_iterations, request.gjk_tolerance);
-  gjk.setDistanceEarlyBreak(request.distance_upper_bound);
-  gjk.gjk_variant = request.gjk_variant;
-  gjk.convergence_criterion = request.gjk_convergence_criterion;
-  gjk.convergence_criterion_type = request.gjk_convergence_criterion_type;
-
-  // Compute initial guess
-  coal::Vec3s guess(1, 0, 0);
-  coal::support_func_guess_t support_hint = coal::support_func_guess_t::Zero();
-  if (request.gjk_initial_guess == coal::CachedGuess)
-  {
-    guess = request.cached_gjk_guess;
-    support_hint = request.cached_support_func_guess;
-  }
-
-  // Run GJK
-  gjk.evaluate(md, guess.cast<coal::SolverScalar>(), support_hint);
-
-  // Cache GJK guess for subsequent calls
-  result.cached_gjk_guess = gjk.ray.cast<coal::Scalar>();
-  result.cached_support_func_guess = gjk.support_hint;
-
-  // If no collision, return
-  if (gjk.status != coal::details::GJK::Collision &&
-      gjk.status != coal::details::GJK::CollisionWithPenetrationInformation)
-  {
-    return false;
-  }
-
-  // Extract witness points from GJK if it already has penetration info
-  coal::Scalar distance;
-  coal::Vec3s p1, p2, normal;
-
-  if (gjk.status == coal::details::GJK::CollisionWithPenetrationInformation)
-  {
-    coal::Vec3ps p1_, p2_, normal_;
-    gjk.getWitnessPointsAndNormal(md, p1_, p2_, normal_);
-    p1 = p1_.cast<coal::Scalar>();
-    p2 = p2_.cast<coal::Scalar>();
-    normal = normal_.cast<coal::Scalar>();
-    distance = gjk.distance;
-  }
-  else if (request.enable_contact)
-  {
-    // Run EPA for penetration depth
-    coal::details::EPA epa(request.epa_max_iterations, request.epa_tolerance);
-    epa.evaluate(gjk, (-guess).cast<coal::SolverScalar>());
-
-    result.cached_gjk_guess = -(epa.depth * epa.normal).cast<coal::Scalar>();
-    result.cached_support_func_guess = epa.support_hint;
-
-    distance = std::min(coal::Scalar(0), -coal::Scalar(epa.depth));
-    coal::Vec3ps p1_, p2_, normal_;
-    epa.getWitnessPointsAndNormal(md, p1_, p2_, normal_);
-    p1 = p1_.cast<coal::Scalar>();
-    p2 = p2_.cast<coal::Scalar>();
-    normal = normal_.cast<coal::Scalar>();
-  }
-  else
-  {
-    // Collision detected but no penetration info requested
-    distance = -(std::numeric_limits<coal::Scalar>::max)();
-    p1 = p2 = normal = coal::Vec3s::Constant(std::numeric_limits<coal::Scalar>::quiet_NaN());
-  }
-
-  // Transform witness points to world frame (same pattern as coal's EPAExtractWitnessPointsAndNormal)
-  coal::Vec3s p = tf0.transform(0.5 * (p1 + p2));
-  normal = tf0.getRotation() * normal;
-  p1.noalias() = p - 0.5 * distance * normal;
-  p2.noalias() = p + 0.5 * distance * normal;
-
-  // Create contact
-  coal::Contact contact;
-  contact.o1 = o1->collisionGeometry().get();
-  contact.o2 = o2->collisionGeometry().get();
-  contact.penetration_depth = distance;
-
-  if (swapped)
-  {
-    // Swap witness points and negate normal to match original ordering
-    contact.nearest_points[0] = p2;
-    contact.nearest_points[1] = p1;
-    contact.normal = -normal;
-  }
-  else
-  {
-    contact.nearest_points[0] = p1;
-    contact.nearest_points[1] = p2;
-    contact.normal = normal;
-  }
-
-  result.addContact(contact);
-  return true;
-}
 
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
@@ -617,57 +433,14 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
-  // Detect CastHullShape and use custom narrowphase with Schulman support function
-  const bool is_cast_hull = (dynamic_cast<const CastHullShape*>(o1->collisionGeometry().get()) != nullptr) ||
-                            (dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr);
-
+  // CastHullShape is a ConvexBase32 whose vertices form the swept hull, so
+  // coal's standard ComputeCollision (ConvexBase32 GJK) detects collision for
+  // both CastHullShape and regular shapes.  The continuous-collision fields
+  // (cc_time, cc_transform) are computed afterward by
+  // populateContinuousCollisionFields using the underlying shape's exact
+  // support function.
   coal::CollisionResult col_result;
 
-  if (is_cast_hull)
-  {
-    // Use a separate cache for CastHullShape collision requests (no ComputeCollision functor needed)
-    CollisionObjectPair object_pair = std::make_pair(o1, o2);
-    auto col_request_it = cdata->collision_cache->find(object_pair);
-    if (col_request_it == cdata->collision_cache->end())
-    {
-      coal::CollisionRequest col_request;
-      col_request.gjk_variant = coal::GJKVariant::PolyakAcceleration;
-      col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-      col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
-      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-      col_request.enable_contact = cdata->req.calculate_penetration;
-      col_request.num_max_contacts = num_contacts;
-      col_request.security_margin = security_margin;
-      // CastHullShape swept volumes can be much larger than the security_margin.
-      // Using security_margin as the GJK early-break threshold would cause GJK to
-      // return NoCollisionEarlyStopped before the simplex encloses the origin,
-      // because the Minkowski difference support values scale with the swept extent.
-      col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-      // Create a dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type)
-      auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
-      col_request_it =
-          cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
-    }
-    else
-    {
-      auto& cached_request = col_request_it->second.second;
-      cached_request.enable_contact = cdata->req.calculate_penetration;
-      cached_request.num_max_contacts = num_contacts;
-      cached_request.security_margin = security_margin;
-      cached_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-    }
-
-    auto& cached_request = col_request_it->second.second;
-    castHullCollide(o1, o2, cached_request, col_result);
-
-    if (cached_request.gjk_initial_guess != coal::CachedGuess)
-    {
-      cached_request.gjk_initial_guess = coal::CachedGuess;
-      cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
-      cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
-    }
-  }
-  else
   {
     CollisionObjectPair object_pair = std::make_pair(o1, o2);
     auto col_request_it = cdata->collision_cache->find(object_pair);
