@@ -544,8 +544,8 @@ bool castHullCollide(coal::CollisionObject* o1,
     const char* status_str = "Unknown";
     switch (gjk.status)
     {
-      case coal::details::GJK::Valid:
-        status_str = "Valid (separated)";
+      case coal::details::GJK::NoCollision:
+        status_str = "NoCollision (separated)";
         break;
       case coal::details::GJK::Failed:
         status_str = "Failed (iteration limit)";
