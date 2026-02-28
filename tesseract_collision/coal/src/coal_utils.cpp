@@ -299,6 +299,11 @@ constexpr double COAL_LENGTH_TOLERANCE = 0.001;
  *
  * Delegates to coal::details::getSupport which handles all shape types
  * including ConvexBase32 (returns a single extreme vertex).
+ *
+ * Uses WithSweptSphere mode so that primitive shapes like Sphere include
+ * their radius in the support point. In NoSweptSphere mode, coal returns
+ * zero for Sphere (it treats the sphere as a point + swept-sphere inflation),
+ * which is incorrect for our standalone usage outside coal's internal GJK.
  */
 void GetSupport(const coal::ShapeBase* shape,
                 const coal::Vec3s& normal,
@@ -306,7 +311,7 @@ void GetSupport(const coal::ShapeBase* shape,
                 coal::Vec3s& out_point)
 {
   int hint = 0;
-  out_point = coal::details::getSupport(shape, normal, hint);
+  out_point = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, normal, hint);
   out_support = normal.dot(out_point);
 }
 
@@ -390,27 +395,34 @@ void populateContinuousCollisionFields(ContactResult& contact,
     }
     else
     {
-      // Between: interpolate cc_time by projecting the contact point onto the
-      // sweep trajectory of the support point (pt_world0 → pt_world1).
-      // Using the projection along this axis instead of Euclidean distance avoids
-      // skew from off-axis components of the support point (e.g., tessellated mesh
-      // vertices that don't lie exactly on the contact normal axis).
-      Eigen::Vector3d sweep_vec = Eigen::Vector3d(pt_world1) - Eigen::Vector3d(pt_world0);
-      double sweep_len_sq = sweep_vec.squaredNorm();
+      contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      // Update nearest_points_local to averaged support point (matching Bullet)
+      // Interpolate cc_time by projecting the contact point onto the shape's
+      // CENTER trajectory (center0 → center1) rather than the support vertex
+      // trajectory. Using the center avoids skew from off-axis components of
+      // tessellated mesh support vertices (e.g., a convex mesh vertex at
+      // (0.237, -0.077, 0.25) instead of ideal (0.25, 0, 0) for a sphere).
+      Eigen::Vector3d center0 = Eigen::Vector3d(tf_world0.getTranslation());
+      Eigen::Vector3d center1 = Eigen::Vector3d(tf_world1.getTranslation());
+      Eigen::Vector3d center_sweep = center1 - center0;
+      double center_sweep_sq = center_sweep.squaredNorm();
+
+      if (center_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
+        contact.cc_time[i] = 0.5;
+      else
+        contact.cc_time[i] = center_sweep.dot(pt_world - center0) / center_sweep_sq;
+
+      // Update nearest_points_local: project the averaged support distance onto
+      // the contact normal direction to remove off-axis tessellation artifacts.
+      // This gives the point on the shape's surface along the normal, which is
+      // what Bullet's calculateContinuousData computes for primitive shapes.
+      double avg_sup = (sup_local0 + sup_local1) / 2.0;
+      Eigen::Vector3d pt_on_normal = avg_sup * Eigen::Vector3d(normal_local0);
       Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
       Eigen::Isometry3d shape_tf0;
       shape_tf0.linear() = tf_world0.getRotation();
       shape_tf0.translation() = tf_world0.getTranslation();
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * (((pt_local0 + pt_local1) / 2.0).eval()));
-
-      contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
-
-      if (sweep_len_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
-        contact.cc_time[i] = 0.5;
-      else
-        contact.cc_time[i] = sweep_vec.dot(pt_world - Eigen::Vector3d(pt_world0)) / sweep_len_sq;
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * pt_on_normal);
     }
   }
 }
@@ -421,6 +433,11 @@ void populateContinuousCollisionFields(ContactResult& contact,
  * Uses the Schulman et al. (2013) approach: the support of a swept shape is
  * max(support_start(d), support_end(d)) using the underlying shape's exact
  * support function. Shape0 is always the CastHullShape; shape1 may also be one.
+ *
+ * Uses WithSweptSphere mode for all support calls so that primitive shapes
+ * (Sphere, Capsule, etc.) include their radius in the support point. Coal's
+ * NoSweptSphere mode returns zero for these shapes, which would collapse the
+ * Minkowski difference and cause GJK to miss collisions.
  */
 void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
                             const coal::Vec3s& dir,
@@ -431,7 +448,7 @@ void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
 {
   // Shape0 is the CastHullShape — use the Schulman support function
   const auto* cast_hull0 = static_cast<const CastHullShape*>(md.shapes[0]);
-  coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+  coal::details::getShapeSupport<coal::details::SupportOptions::WithSweptSphere>(
       cast_hull0, dir, support0, hint[0], data[0]);
 
   // Negate direction for shape1 per Minkowski difference convention
@@ -444,12 +461,12 @@ void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
   const auto* cast_hull1 = dynamic_cast<const CastHullShape*>(md.shapes[1]);
   if (cast_hull1 != nullptr)
   {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+    coal::details::getShapeSupport<coal::details::SupportOptions::WithSweptSphere>(
         cast_hull1, neg_dir1, support1, hint[1], data[1]);
   }
   else
   {
-    support1 = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(
+    support1 = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
         md.shapes[1], neg_dir1, hint[1]);
   }
   support1 = md.oR1 * support1 + md.ot1;
