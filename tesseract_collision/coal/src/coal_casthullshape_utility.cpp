@@ -150,23 +150,19 @@ void getShapeSupport(const CastHullShape* cast_hull_shape,
   supportEnd = castTransform.transform(supportEndLocal);
 
   // Return the point with maximum projection in the direction.
-  // When both projections are (nearly) equal, return the average of the two
-  // support points. This is geometrically valid: the midpoint lies on the
-  // boundary of the convex hull and achieves the same max projection. Using the
-  // average avoids returning the same point for many nearby directions (which
-  // happens for shapes with continuous support, like Sphere, when the sweep
-  // direction is perpendicular to the query direction). Without averaging, GJK
-  // receives duplicate vertices and its simplex degenerates, causing convergence
-  // failure.
+  // When both projections are (nearly) equal, return the end-pose support point.
+  // This matches Bullet's btCastHullShape::localGetSupportingVertex which uses
+  // a strict ">" comparison (s0 > s1 ? s0 : s1), favoring the end-pose vertex
+  // on ties. Returning an actual hull vertex (not an averaged interior point)
+  // ensures GJK/EPA operates on valid polytope vertices, producing correct
+  // witness points and penetration depths.
   double dotStart = dir.dot(supportStart);
   double dotEnd = dir.dot(supportEnd);
-  double dotDiff = dotStart - dotEnd;
 
-  constexpr double kTieEpsilon = 1e-10;
-  if (std::abs(dotDiff) < kTieEpsilon)
-    support = (supportStart + supportEnd) / 2.0;
+  if (dotStart > dotEnd)
+    support = supportStart;
   else
-    support = (dotDiff > 0) ? supportStart : supportEnd;
+    support = supportEnd;
 }
 
 template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
