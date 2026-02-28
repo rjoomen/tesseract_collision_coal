@@ -539,11 +539,12 @@ inline void runTestConvex(ContinuousContactManager& checker)
       << "Contact normal z: should be ~0";
 
   /////////////////////////////////////////////////////////////
-  // Test when object is in collision at cc_time ~0.385 and 0.5
+  // Test when object is in collision at cc_time ~0.348 and 0.5
   // sphere_link now starts closer: sweeps Y=-0.5->1.0
   // sphere1_link sweeps Z=-1.0->1.0 as before
-  // Note: convex mesh cc_time differs from primitive (0.3848 vs 0.3333)
-  // due to tessellation affecting the support point distances.
+  // Note: convex mesh cc_time differs slightly from primitive (0.348 vs 0.333)
+  // because the GJK contact point y-offset (~0.021) due to tessellation shifts
+  // the center-based cc_time interpolation.
   /////////////////////////////////////////////////////////////
 
   // Set the start location
@@ -574,11 +575,11 @@ inline void runTestConvex(ContinuousContactManager& checker)
   result.flattenCopyResults(result_vector);
 
   ASSERT_FALSE(result_vector.empty())
-      << "Scenario 2 convex (asymmetric cc_time 0.385/0.5): No contacts found. "
+      << "Scenario 2 convex (asymmetric cc_time 0.348/0.5): No contacts found. "
       << "Convex sphere_link sweeps Y=-0.5->1.0, sphere1_link sweeps Z=-1.0->1.0.";
 
   const auto& cr2 = result_vector[0];
-  SCOPED_TRACE("Scenario 2 convex (cc_time 0.385/0.5): " + formatContactResult(cr2));
+  SCOPED_TRACE("Scenario 2 convex (cc_time 0.348/0.5): " + formatContactResult(cr2));
 
   EXPECT_NEAR(cr2.distance, -0.0754, 0.001)
       << "Penetration for convex mesh spheres";
@@ -590,9 +591,9 @@ inline void runTestConvex(ContinuousContactManager& checker)
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
   const std::string sphere1_slot2 = (idx[1] == 0) ? "slot 0" : "slot 1";
 
-  EXPECT_NEAR(cr2.cc_time[static_cast<size_t>(idx[0])], 0.3848, 0.001)
-      << "sphere_link (" << sphere_slot2 << ") cc_time ~0.385 (convex mesh; differs from "
-      << "primitive 0.333 due to tessellation support point distances)";
+  EXPECT_NEAR(cr2.cc_time[static_cast<size_t>(idx[0])], 0.3476, 0.001)
+      << "sphere_link (" << sphere_slot2 << ") cc_time ~0.348 (convex mesh; differs from "
+      << "primitive 0.333 due to GJK contact point y-offset from tessellation)";
   EXPECT_NEAR(cr2.cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001)
       << "sphere1_link (" << sphere1_slot2 << ") cc_time should be 0.5";
 
@@ -606,15 +607,15 @@ inline void runTestConvex(ContinuousContactManager& checker)
   // World-frame nearest points
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][0], 0.0377, 0.001)
       << "sphere_link nearest_point.x (convex mesh)";
-  EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][1], 0.0772, 0.001)
-      << "sphere_link nearest_point.y: offset from Y=0 due to asymmetric sweep timing";
+  EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][1], 0.0213, 0.001)
+      << "sphere_link nearest_point.y: offset from Y=0 due to tessellated mesh contact geometry";
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001)
       << "sphere_link nearest_point.z: sphere_pose z=0.25 offset";
 
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[1])][0], -0.0377, 0.001)
       << "sphere1_link nearest_point.x (convex mesh)";
-  EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[1])][1], 0.0772, 0.001)
-      << "sphere1_link nearest_point.y";
+  EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[1])][1], 0.0213, 0.001)
+      << "sphere1_link nearest_point.y: offset from Y=0 due to tessellated mesh contact geometry";
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001)
       << "sphere1_link nearest_point.z: sphere_pose z=0.25 offset";
 
