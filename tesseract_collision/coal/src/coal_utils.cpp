@@ -45,8 +45,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/shape/geometric_shapes.h>
 #include <coal/shape/geometric_shapes_utility.h>
 #include <coal/narrowphase/support_functions.h>
-#include <coal/narrowphase/minkowski_difference.h>
-#include <coal/narrowphase/gjk.h>
 #include <coal/shape/convex.h>
 #include <coal/data_types.h>
 #include <coal/octree.h>
@@ -60,7 +58,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/coal/coal_utils.h>
 #include <tesseract_collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract_collision/coal/coal_casthullshape.h>
-#include <tesseract_collision/coal/coal_casthullshape_utility.h>
 #include <tesseract_geometry/geometries.h>
 
 namespace tesseract_collision::tesseract_collision_coal
@@ -293,26 +290,58 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 
 constexpr double COAL_SUPPORT_FUNC_TOLERANCE = 0.01;
 constexpr double COAL_LENGTH_TOLERANCE = 0.001;
+constexpr double COAL_EPSILON = 1e-6;
 
 /**
- * @brief Compute the support point for a COAL shape along a direction.
+ * @brief Compute the average support point for a shape along a direction.
  *
- * Delegates to coal::details::getSupport which handles all shape types
- * including ConvexBase32 (returns a single extreme vertex).
+ * Matches Bullet's GetAverageSupport algorithm: for polyhedral shapes
+ * (ConvexBase32), iterates all vertices, finds the maximum support value,
+ * and averages all vertices within COAL_EPSILON of that maximum. This
+ * handles degenerate cases where multiple vertices have equal support.
  *
- * Uses WithSweptSphere mode so that primitive shapes like Sphere include
- * their radius in the support point. In NoSweptSphere mode, coal returns
- * zero for Sphere (it treats the sphere as a point + swept-sphere inflation),
- * which is incorrect for our standalone usage outside coal's internal GJK.
+ * For non-polyhedral shapes (Sphere, Capsule, etc.), falls back to coal's
+ * getSupport<WithSweptSphere> which includes the shape's radius.
  */
-void GetSupport(const coal::ShapeBase* shape,
-                const coal::Vec3s& normal,
-                double& out_support,
-                coal::Vec3s& out_point)
+void GetAverageSupport(const coal::ShapeBase* shape,
+                       const coal::Vec3s& localNormal,
+                       double& outsupport,
+                       coal::Vec3s& outpt)
 {
-  int hint = 0;
-  out_point = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, normal, hint);
-  out_support = normal.dot(out_point);
+  const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape);
+  if (convex != nullptr && convex->points && !convex->points->empty())
+  {
+    coal::Vec3s ptSum = coal::Vec3s::Zero();
+    double ptCount = 0;
+    double maxSupport = -1e10;
+
+    for (const auto& pt : *convex->points)
+    {
+      double sup = pt.dot(localNormal);
+      if (sup > maxSupport + COAL_EPSILON)
+      {
+        ptCount = 1;
+        ptSum = pt;
+        maxSupport = sup;
+      }
+      else if (sup >= maxSupport - COAL_EPSILON)
+      {
+        ptCount += 1;
+        ptSum += pt;
+      }
+    }
+    outsupport = maxSupport;
+    outpt = ptSum / ptCount;
+  }
+  else
+  {
+    // For primitive shapes (Sphere, etc.), use coal's standard support function.
+    // WithSweptSphere mode is required so that Sphere returns radius*normalize(dir)
+    // instead of zero (NoSweptSphere treats Sphere as a point + inflation).
+    int hint = 0;
+    outpt = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, localNormal, hint);
+    outsupport = localNormal.dot(outpt);
+  }
 }
 
 inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
@@ -328,9 +357,15 @@ inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 /**
  * @brief Populate continuous collision fields (cc_time, cc_type, cc_transform) on a ContactResult.
  *
- * Uses support-function-based approach matching Bullet's calculateContinuousData:
+ * Matches Bullet's calculateContinuousData algorithm:
  * finds the shape's extreme points along the contact normal at t=0 and t=1, then
  * classifies the collision time based on which pose has greater support.
+ *
+ * For the CCType_Between case:
+ * - cc_time is computed by projecting the GJK witness point onto the shape's
+ *   center trajectory (center0 → center1).
+ * - nearest_points_local uses the average of the support points at t=0 and t=1,
+ *   matching Bullet's approach.
  *
  * For objects that are not CastHullShapes (static objects), the fields are left at their defaults.
  */
@@ -339,7 +374,6 @@ void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o2)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
-  const Eigen::Vector3d pt_world = (contact.nearest_points[0] + contact.nearest_points[1]) / 2.0;
 
   for (std::size_t i = 0; i < 2; ++i)
   {
@@ -359,8 +393,10 @@ void populateContinuousCollisionFields(ContactResult& contact,
     const coal::Transform3s& tf_world0 = objects[i]->getTransform();
     coal::Transform3s tf_world1 = tf_world0 * ct;
 
-    // Normal pointing from current object toward the other (matching Bullet convention)
-    // COAL contact.normal points from o1 to o2; Bullet's m_normalWorldOnB points from o2 to o1
+    // Normal pointing from current object toward the other (matching Bullet convention:
+    // for link 0, Bullet uses -m_normalWorldOnB = A→B direction;
+    // for link 1, Bullet uses m_normalWorldOnB = A→B = toward link 1's "other")
+    // COAL contact.normal points from o1 to o2, same as Bullet's m_normalWorldOnB
     const coal::Vec3s normal_world = (i == 0) ? coal::Vec3s(contact.normal) : coal::Vec3s(-contact.normal);
 
     // Transform normal into local frames at t=0 and t=1
@@ -371,12 +407,12 @@ void populateContinuousCollisionFields(ContactResult& contact,
     const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
     coal::Vec3s pt_local0;
     double sup_local0 = 0;
-    GetSupport(underlying, normal_local0, sup_local0, pt_local0);
+    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0);
     coal::Vec3s pt_world0 = tf_world0.transform(pt_local0);
 
     coal::Vec3s pt_local1;
     double sup_local1 = 0;
-    GetSupport(underlying, normal_local1, sup_local1, pt_local1);
+    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
     coal::Vec3s pt_world1 = tf_world1.transform(pt_local1);
 
     // Compare support projections along the contact normal
@@ -397,265 +433,33 @@ void populateContinuousCollisionFields(ContactResult& contact,
     {
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      // Interpolate cc_time by projecting the contact point onto the shape's
-      // CENTER trajectory (center0 → center1) rather than the support vertex
-      // trajectory. Using the center avoids skew from off-axis components of
-      // tessellated mesh support vertices (e.g., a convex mesh vertex at
-      // (0.237, -0.077, 0.25) instead of ideal (0.25, 0, 0) for a sphere).
+      // Use the GJK witness point on THIS shape (matching Bullet's pt_world convention)
+      Eigen::Vector3d pt_on_shape = Eigen::Vector3d(contact.nearest_points[i]);
+
+      // Interpolate cc_time by projecting the witness point onto the shape's
+      // center trajectory (center0 → center1). The witness point's position
+      // along the sweep encodes the collision time.
       Eigen::Vector3d center0 = Eigen::Vector3d(tf_world0.getTranslation());
       Eigen::Vector3d center1 = Eigen::Vector3d(tf_world1.getTranslation());
-      Eigen::Vector3d center_sweep = center1 - center0;
-      double center_sweep_sq = center_sweep.squaredNorm();
+      Eigen::Vector3d sweep = center1 - center0;
+      double sweep_sq = sweep.squaredNorm();
 
-      if (center_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
+      if (sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = center_sweep.dot(pt_world - center0) / center_sweep_sq;
+        contact.cc_time[i] = sweep.dot(pt_on_shape - center0) / sweep_sq;
 
-      // Update nearest_points_local: project the averaged support distance onto
-      // the contact normal direction to remove off-axis tessellation artifacts.
-      // This gives the point on the shape's surface along the normal, which is
-      // what Bullet's calculateContinuousData computes for primitive shapes.
-      double avg_sup = (sup_local0 + sup_local1) / 2.0;
-      Eigen::Vector3d pt_on_normal = avg_sup * Eigen::Vector3d(normal_local0);
+      // nearest_points_local: average of the two local support points,
+      // transformed to world via shape_tf0, then to link-local coordinates.
+      // Matches Bullet's calculateContinuousData: (shape_ptLocal0 + shape_ptLocal1) / 2.0
+      coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
       Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
       Eigen::Isometry3d shape_tf0;
       shape_tf0.linear() = tf_world0.getRotation();
       shape_tf0.translation() = tf_world0.getTranslation();
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * pt_on_normal);
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(avg_pt_local));
     }
   }
-}
-
-/**
- * @brief Custom GetSupportFunction for CastHullShape collisions.
- *
- * Uses the Schulman et al. (2013) approach: the support of a swept shape is
- * max(support_start(d), support_end(d)) using the underlying shape's exact
- * support function. Shape0 is always the CastHullShape; shape1 may also be one.
- *
- * Uses WithSweptSphere mode for all support calls so that primitive shapes
- * (Sphere, Capsule, etc.) include their radius in the support point. Coal's
- * NoSweptSphere mode returns zero for these shapes, which would collapse the
- * Minkowski difference and cause GJK to miss collisions.
- */
-void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
-                            const coal::Vec3s& dir,
-                            coal::Vec3s& support0,
-                            coal::Vec3s& support1,
-                            coal::support_func_guess_t& hint,
-                            coal::details::ShapeSupportData data[2])
-{
-  // Shape0 is the CastHullShape — use the Schulman support function
-  const auto* cast_hull0 = static_cast<const CastHullShape*>(md.shapes[0]);
-  coal::details::getShapeSupport<coal::details::SupportOptions::WithSweptSphere>(
-      cast_hull0, dir, support0, hint[0], data[0]);
-
-  // Negate direction for shape1 per Minkowski difference convention
-  // (coal's getSupportTpl uses -dir for shape1: support1 = s_S1(-dir))
-  coal::Vec3s neg_dir1 = -(md.oR1.transpose() * dir);
-
-  // Check if shape1 is also a CastHullShape — if so, use Schulman support
-  // directly to avoid incorrect dispatch through coal's generic getSupport
-  // (CastHullShape is a ConvexBase32 which coal's dispatcher may mishandle)
-  const auto* cast_hull1 = dynamic_cast<const CastHullShape*>(md.shapes[1]);
-  if (cast_hull1 != nullptr)
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::WithSweptSphere>(
-        cast_hull1, neg_dir1, support1, hint[1], data[1]);
-  }
-  else
-  {
-    support1 = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
-        md.shapes[1], neg_dir1, hint[1]);
-  }
-  support1 = md.oR1 * support1 + md.ot1;
-}
-
-/**
- * @brief Perform narrowphase collision for CastHullShape using custom support functions.
- *
- * Bypasses coal::ComputeCollision to inject the Schulman support function into
- * the MinkowskiDiff, then runs GJK/EPA directly.
- *
- * Uses DefaultGJK (no acceleration) because PolyakAcceleration's momentum
- * interferes with the discontinuous Schulman support function, which switches
- * between start and end configurations.
- *
- * @param o1 First collision object
- * @param o2 Second collision object
- * @param request The collision request parameters
- * @param result Output collision result
- * @return true if collision was detected
- */
-bool castHullCollide(coal::CollisionObject* o1,
-                     coal::CollisionObject* o2,
-                     const coal::CollisionRequest& request,
-                     coal::CollisionResult& result)
-{
-  // Determine which object is the CastHullShape; ensure it's shape0
-  const auto* geom0 = o1->collisionGeometry().get();
-  const auto* geom1 = o2->collisionGeometry().get();
-  const auto* cast0 = dynamic_cast<const CastHullShape*>(geom0);
-  const auto* cast1 = dynamic_cast<const CastHullShape*>(geom1);
-
-  bool swapped = false;
-  const coal::ShapeBase* shape0 = nullptr;
-  const coal::ShapeBase* shape1 = nullptr;
-  coal::Transform3s tf0, tf1;
-
-  if (cast0 != nullptr)
-  {
-    shape0 = static_cast<const coal::ShapeBase*>(cast0);
-    shape1 = static_cast<const coal::ShapeBase*>(geom1);
-    tf0 = o1->getTransform();
-    tf1 = o2->getTransform();
-  }
-  else
-  {
-    // cast1 must be CastHullShape; swap so CastHullShape is shape0
-    swapped = true;
-    shape0 = static_cast<const coal::ShapeBase*>(cast1);
-    shape1 = static_cast<const coal::ShapeBase*>(geom0);
-    tf0 = o2->getTransform();
-    tf1 = o1->getTransform();
-  }
-
-  // Set up MinkowskiDiff with standard transform initialization
-  coal::details::MinkowskiDiff md;
-  md.set<coal::details::SupportOptions::NoSweptSphere>(shape0, shape1, tf0, tf1);
-
-  // Replace the support function with our custom CastHullShape support
-  md.getSupportFunc = castHullGetSupportFunc;
-
-  // Configure GJK — use DefaultGJK (no acceleration).
-  // PolyakAcceleration's momentum interferes with the discontinuous
-  // Schulman support, causing convergence failures for shapes with
-  // continuous support functions (e.g. Sphere, Cylinder, Capsule).
-  coal::details::GJK gjk(request.gjk_max_iterations, request.gjk_tolerance);
-  gjk.setDistanceEarlyBreak(request.distance_upper_bound);
-
-  // Compute initial guess — use the center difference between shapes as a
-  // better starting direction than an arbitrary axis.
-  coal::Vec3s guess = tf0.getTranslation() - tf1.getTranslation();
-  if (guess.squaredNorm() < 1e-12)
-    guess = coal::Vec3s(1, 0, 0);
-  coal::support_func_guess_t support_hint = coal::support_func_guess_t::Zero();
-  if (request.gjk_initial_guess == coal::CachedGuess)
-  {
-    guess = request.cached_gjk_guess;
-    support_hint = request.cached_support_func_guess;
-  }
-
-  // Run GJK
-  gjk.evaluate(md, guess.cast<coal::SolverScalar>(), support_hint);
-
-  // Cache GJK guess for subsequent calls
-  result.cached_gjk_guess = gjk.ray.cast<coal::Scalar>();
-  result.cached_support_func_guess = gjk.support_hint;
-
-  // If no collision, log diagnostic info and return
-  if (gjk.status != coal::details::GJK::Collision &&
-      gjk.status != coal::details::GJK::CollisionWithPenetrationInformation)
-  {
-    const char* status_str = "Unknown";
-    switch (gjk.status)
-    {
-      case coal::details::GJK::NoCollision:
-        status_str = "NoCollision (separated)";
-        break;
-      case coal::details::GJK::Failed:
-        status_str = "Failed (iteration limit)";
-        break;
-      case coal::details::GJK::NoCollisionEarlyStopped:
-        status_str = "NoCollisionEarlyStopped";
-        break;
-      case coal::details::GJK::DidNotRun:
-        status_str = "DidNotRun";
-        break;
-      default:
-        break;
-    }
-    CONSOLE_BRIDGE_logDebug(
-        "castHullCollide: GJK returned %s (distance=%.6f). "
-        "shape0=%s, shape1=%s, tf0=(%.3f,%.3f,%.3f), tf1=(%.3f,%.3f,%.3f)",
-        status_str,
-        static_cast<double>(gjk.distance),
-        (cast0 != nullptr ? "CastHullShape" : "other"),
-        (cast1 != nullptr ? "CastHullShape" : "other"),
-        tf0.getTranslation()[0],
-        tf0.getTranslation()[1],
-        tf0.getTranslation()[2],
-        tf1.getTranslation()[0],
-        tf1.getTranslation()[1],
-        tf1.getTranslation()[2]);
-    return false;
-  }
-
-  // Extract witness points from GJK if it already has penetration info
-  coal::Scalar distance;
-  coal::Vec3s p1, p2, normal;
-
-  if (gjk.status == coal::details::GJK::CollisionWithPenetrationInformation)
-  {
-    coal::Vec3ps p1_, p2_, normal_;
-    gjk.getWitnessPointsAndNormal(md, p1_, p2_, normal_);
-    p1 = p1_.cast<coal::Scalar>();
-    p2 = p2_.cast<coal::Scalar>();
-    normal = normal_.cast<coal::Scalar>();
-    distance = gjk.distance;
-  }
-  else if (request.enable_contact)
-  {
-    // Run EPA for penetration depth
-    coal::details::EPA epa(request.epa_max_iterations, request.epa_tolerance);
-    epa.evaluate(gjk, (-guess).cast<coal::SolverScalar>());
-
-    result.cached_gjk_guess = -(epa.depth * epa.normal).cast<coal::Scalar>();
-    result.cached_support_func_guess = epa.support_hint;
-
-    distance = std::min(coal::Scalar(0), -coal::Scalar(epa.depth));
-    coal::Vec3ps p1_, p2_, normal_;
-    epa.getWitnessPointsAndNormal(md, p1_, p2_, normal_);
-    p1 = p1_.cast<coal::Scalar>();
-    p2 = p2_.cast<coal::Scalar>();
-    normal = normal_.cast<coal::Scalar>();
-  }
-  else
-  {
-    // Collision detected but no penetration info requested
-    distance = -(std::numeric_limits<coal::Scalar>::max)();
-    p1 = p2 = normal = coal::Vec3s::Constant(std::numeric_limits<coal::Scalar>::quiet_NaN());
-  }
-
-  // Transform witness points to world frame (same pattern as coal's EPAExtractWitnessPointsAndNormal)
-  coal::Vec3s p = tf0.transform(0.5 * (p1 + p2));
-  normal = tf0.getRotation() * normal;
-  p1.noalias() = p - 0.5 * distance * normal;
-  p2.noalias() = p + 0.5 * distance * normal;
-
-  // Create contact
-  coal::Contact contact;
-  contact.o1 = o1->collisionGeometry().get();
-  contact.o2 = o2->collisionGeometry().get();
-  contact.penetration_depth = distance;
-
-  if (swapped)
-  {
-    // Swap witness points and negate normal to match original ordering
-    contact.nearest_points[0] = p2;
-    contact.nearest_points[1] = p1;
-    contact.normal = -normal;
-  }
-  else
-  {
-    contact.nearest_points[0] = p1;
-    contact.nearest_points[1] = p2;
-    contact.normal = normal;
-  }
-
-  result.addContact(contact);
-  return true;
 }
 
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
@@ -675,60 +479,18 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
-  // Detect CastHullShape and use custom narrowphase with Schulman support function
+  // Detect CastHullShape for distance_upper_bound and post-processing
   const bool is_cast_hull = (dynamic_cast<const CastHullShape*>(o1->collisionGeometry().get()) != nullptr) ||
                             (dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr);
 
   coal::CollisionResult col_result;
 
-  if (is_cast_hull)
+  // Use coal's standard ComputeCollision for all shapes, including CastHullShape.
+  // CastHullShape is a ConvexBase32 subclass with proper convex hull vertices and
+  // neighbor data, so coal's standard GJK operates on the hull vertices directly.
+  // This matches Bullet's approach (btConvexHullShape with tessellated vertices)
+  // and produces consistent witness points for cc_time computation.
   {
-    // CastHullShape path: use custom GJK with Schulman support function.
-    // Uses DefaultGJK (no acceleration) because PolyakAcceleration's momentum
-    // interferes with the discontinuous Schulman support, causing convergence
-    // failures for shapes with continuous support functions (Sphere, etc.).
-    CollisionObjectPair object_pair = std::make_pair(o1, o2);
-    auto col_request_it = cdata->collision_cache->find(object_pair);
-    if (col_request_it == cdata->collision_cache->end())
-    {
-      coal::CollisionRequest col_request;
-      // Use DefaultGJK — do NOT set gjk_variant, convergence_criterion, or
-      // convergence_criterion_type, leaving them at coal defaults.
-      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-      col_request.enable_contact = cdata->req.calculate_penetration;
-      col_request.num_max_contacts = num_contacts;
-      col_request.security_margin = security_margin;
-      // CastHullShape swept volumes can be much larger than security_margin.
-      // Using security_margin as the GJK early-break threshold would cause GJK to
-      // return NoCollisionEarlyStopped before the simplex encloses the origin.
-      col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-      // Dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type)
-      auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
-      col_request_it =
-          cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
-    }
-    else
-    {
-      auto& cached_request = col_request_it->second.second;
-      cached_request.enable_contact = cdata->req.calculate_penetration;
-      cached_request.num_max_contacts = num_contacts;
-      cached_request.security_margin = security_margin;
-      cached_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-    }
-
-    auto& cached_request = col_request_it->second.second;
-    castHullCollide(o1, o2, cached_request, col_result);
-
-    if (cached_request.gjk_initial_guess != coal::CachedGuess)
-    {
-      cached_request.gjk_initial_guess = coal::CachedGuess;
-      cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
-      cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
-    }
-  }
-  else
-  {
-    // Standard path for non-CastHullShape: use coal's ComputeCollision functor
     CollisionObjectPair object_pair = std::make_pair(o1, o2);
     auto col_request_it = cdata->collision_cache->find(object_pair);
     if (col_request_it == cdata->collision_cache->end())
@@ -741,7 +503,17 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       col_request.enable_contact = cdata->req.calculate_penetration;
       col_request.num_max_contacts = num_contacts;
       col_request.security_margin = security_margin;
-      col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
+      if (is_cast_hull)
+      {
+        // CastHullShape swept volumes can be much larger than security_margin.
+        // Using security_margin as the GJK early-break threshold would cause GJK to
+        // return NoCollisionEarlyStopped before the simplex encloses the origin.
+        col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
+      }
+      else
+      {
+        col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
+      }
       auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
       col_request_it =
           cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
@@ -752,7 +524,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       cached_request.enable_contact = cdata->req.calculate_penetration;
       cached_request.num_max_contacts = num_contacts;
       cached_request.security_margin = security_margin;
-      cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+      if (is_cast_hull)
+        cached_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
+      else
+        cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
     }
 
     auto& [functor, cached_request] = col_request_it->second;
