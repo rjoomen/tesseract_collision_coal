@@ -1,0 +1,70 @@
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <gtest/gtest.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
+
+#include <tesseract_collision/test_suite/collision_multi_shape_cast_unit.hpp>
+#include <tesseract_collision/bullet/bullet_cast_simple_manager.h>
+#include <tesseract_collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract_collision/bullet/bullet_discrete_simple_manager.h>
+#include <tesseract_collision/bullet/bullet_discrete_bvh_manager.h>
+#include <tesseract_collision/fcl/fcl_discrete_managers.h>
+#include <tesseract_collision/coal/coal_cast_managers.h>
+#include <tesseract_collision/coal/coal_discrete_managers.h>
+
+using namespace tesseract_collision;
+
+// Discrete multi-shape tests (verify basic multi-shape handling)
+
+TEST(TesseractCollisionUnit, BulletDiscreteSimpleMultiShapeUnit)  // NOLINT
+{
+  tesseract_collision_bullet::BulletDiscreteSimpleManager checker;
+  test_suite::runTestDiscrete(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletDiscreteBVHMultiShapeUnit)  // NOLINT
+{
+  tesseract_collision_bullet::BulletDiscreteBVHManager checker;
+  test_suite::runTestDiscrete(checker);
+}
+
+TEST(TesseractCollisionUnit, FCLDiscreteBVHMultiShapeUnit)  // NOLINT
+{
+  tesseract_collision_fcl::FCLDiscreteBVHManager checker;
+  test_suite::runTestDiscrete(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalDiscreteBVHMultiShapeUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalDiscreteBVHManager checker;
+  test_suite::runTestDiscrete(checker);
+}
+
+// Continuous multi-shape cast tests (verify per-child relative transform)
+
+TEST(TesseractCollisionUnit, BulletCastSimpleMultiShapeCastUnit)  // NOLINT
+{
+  tesseract_collision_bullet::BulletCastSimpleManager checker;
+  test_suite::runTestContinuous(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHMultiShapeCastUnit)  // NOLINT
+{
+  tesseract_collision_bullet::BulletCastBVHManager checker;
+  test_suite::runTestContinuous(checker);
+}
+
+#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
+TEST(TesseractCollisionUnit, CoalCastBVHMultiShapeCastUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestContinuous(checker);
+}
+#endif
+
+int main(int argc, char** argv)
+{
+  testing::InitGoogleTest(&argc, argv);
+
+  return RUN_ALL_TESTS();
+}

@@ -375,16 +375,24 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
     const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
     const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
 
-    // Calculate relative transform directly in Coal format
-    const auto relative_transform = tf1.inverseTimes(tf2);
+    const auto& shape_poses = cow->getCollisionGeometriesTransforms();
 
     // Update cast transforms first so computeLocalAABB reflects the swept volume
     for (auto& co : cow->getCollisionObjects())
     {
       if (auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get()))
       {
-        // Update the cast transform with the relative transform
-        cast_shape->updateCastTransform(relative_transform);
+        // Compute per-shape relative transform accounting for local offset.
+        // Each shape's world transform is link_tf * local_tf, so the relative
+        // motion in the shape's local frame is:
+        //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
+        // This matches Bullet's compound shape handling where each child gets
+        // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
+        const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
+        const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
+        const auto shape_tf1 = tf1 * local_tf;
+        const auto shape_tf2 = tf2 * local_tf;
+        cast_shape->updateCastTransform(shape_tf1.inverseTimes(shape_tf2));
       }
     }
 

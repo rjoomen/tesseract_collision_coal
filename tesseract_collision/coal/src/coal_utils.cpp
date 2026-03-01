@@ -381,17 +381,26 @@ void populateContinuousCollisionFields(ContactResult& contact,
     if (cast_shape == nullptr)
       continue;
 
-    // cc_transform = pose2 = pose1 * relative_motion
-    // castTransform stores tf1.inverseTimes(tf2), so pose1 * castTransform = pose2
     const auto& ct = cast_shape->getCastTransform();
-    Eigen::Isometry3d cast_eigen;
-    cast_eigen.linear() = ct.getRotation();
-    cast_eigen.translation() = ct.getTranslation();
-    contact.cc_transform[i] = contact.transform[i] * cast_eigen;
 
     // Shape world transforms at t=0 and t=1
     const coal::Transform3s& tf_world0 = objects[i]->getTransform();
     coal::Transform3s tf_world1 = tf_world0 * ct;
+
+    // cc_transform = link transform at t=1
+    // Recover link_tf2 from shape world transforms:
+    //   shape_tf0 = link_tf1 * local_tf
+    //   shape_tf1 = link_tf2 * local_tf
+    //   link_tf2 = shape_tf1 * shape_tf0^-1 * link_tf1
+    // This correctly handles shapes with non-identity local offsets,
+    // matching Bullet's calculateContinuousData approach.
+    Eigen::Isometry3d shape_tf0;
+    shape_tf0.linear() = tf_world0.getRotation();
+    shape_tf0.translation() = Eigen::Vector3d(tf_world0.getTranslation());
+    Eigen::Isometry3d shape_tf1;
+    shape_tf1.linear() = tf_world1.getRotation();
+    shape_tf1.translation() = Eigen::Vector3d(tf_world1.getTranslation());
+    contact.cc_transform[i] = shape_tf1 * shape_tf0.inverse() * contact.transform[i];
 
     // Normal pointing from current object toward the other (matching Bullet convention)
     // COAL contact.normal points from o1 to o2; Bullet's m_normalWorldOnB points from o2 to o1
@@ -453,9 +462,6 @@ void populateContinuousCollisionFields(ContactResult& contact,
       // Matches Bullet's calculateContinuousData: (shape_ptLocal0 + shape_ptLocal1) / 2.0
       coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
       Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
-      Eigen::Isometry3d shape_tf0;
-      shape_tf0.linear() = tf_world0.getRotation();
-      shape_tf0.translation() = tf_world0.getTranslation();
       contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(avg_pt_local));
     }
   }
