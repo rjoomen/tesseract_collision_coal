@@ -1,6 +1,11 @@
 /**
  * @file coal_casthullshape.h
- * @brief Tesseract Coal Utility Functions.
+ * @brief CastHullShape: a lightweight wrapper for continuous collision detection.
+ *
+ * Analogous to Bullet's btCastHullShape, this wraps an underlying coal::ShapeBase
+ * and a cast transform representing the relative motion from pose t=0 to t=1.
+ * The narrowphase uses the Schulman support function which defers to the underlying
+ * shape's exact support, so no convex hull or vertex tessellation is needed.
  *
  * @author Roelof Oomen
  * @date Aug 04, 2025
@@ -45,7 +50,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <console_bridge/console.h>
 #include <coal/shape/geometric_shapes.h>
-#include <coal/shape/convex.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -54,7 +58,15 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-class CastHullShape : public coal::ConvexTpl<coal::Triangle32>
+/**
+ * @brief A lightweight swept-shape wrapper for continuous collision detection.
+ *
+ * Wraps an underlying coal::ShapeBase and a cast transform (relative motion from
+ * t=0 to t=1). The narrowphase uses the Schulman support function which queries
+ * the underlying shape's exact support at both poses, so no convex hull vertices
+ * are materialized. This mirrors Bullet's btCastHullShape design.
+ */
+class CastHullShape : public coal::ShapeBase
 {
 public:
   CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
@@ -76,27 +88,10 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
-  const std::vector<coal::Vec3s>& getSweptVertices() const { return *points; }
-
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
-  /// @brief Vertices of the underlying shape, extracted once at construction.
-  std::vector<coal::Vec3s> base_vertices_;
-
-  /// @brief Compute the convex hull of the swept vertices, populating points,
-  /// polygons, neighbors, and support warm-start data.
-  void buildConvexHull();
-
-  // Helper methods to extract vertices based on shape type
-  std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
-  std::vector<coal::Vec3s> extractVerticesFromBox(const coal::Box* box) const;
-  std::vector<coal::Vec3s> extractVerticesFromSphere(const coal::Sphere* sphere, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCylinder(const coal::Cylinder* cylinder, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCone(const coal::Cone* cone, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromConvex(const coal::ConvexBase32* convex) const;
 };
 
 }  // namespace tesseract_collision::tesseract_collision_coal

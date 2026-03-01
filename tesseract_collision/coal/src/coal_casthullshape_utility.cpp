@@ -101,21 +101,14 @@ void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Tr
   }
   else
   {
-    // Fallback for any unhandled shape type: build the AABB from the
-    // pre-computed swept vertices, which cover all supported shapes.
-    const auto& vertices = s.getSweptVertices();
-    if (vertices.empty())
-    {
-      CONSOLE_BRIDGE_logWarn("CastHullShape computeBV: unhandled shape type and no swept vertices available");
-      bv = coal::AABB();
-      return;
-    }
-    bv = coal::AABB(tf.transform(vertices[0]));
-    for (size_t i = 1; i < vertices.size(); ++i)
-    {
-      bv += tf.transform(vertices[i]);
-    }
-    return;
+    // Fallback: use the underlying shape's local AABB as a conservative Box at both poses
+    CONSOLE_BRIDGE_logWarn("CastHullShape computeBV: unhandled shape type, using local AABB fallback");
+    shape->computeLocalAABB();
+    const coal::AABB& local = shape->aabb_local;
+    coal::Vec3s half = (local.max_ - local.min_) / 2.0;
+    coal::Box box_proxy(half[0] * 2.0, half[1] * 2.0, half[2] * 2.0);
+    coal::computeBV<coal::AABB>(box_proxy, tf, bv_original);
+    coal::computeBV<coal::AABB>(box_proxy, tf * castTransform, bv_cast);
   }
 
   // Combine both AABBs to get the swept volume AABB
