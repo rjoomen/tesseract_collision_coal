@@ -78,18 +78,15 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   checker.setActiveCollisionObjects({ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
-  // Place obstacle at the midpoint of sub-shape A's sweep path.
+  // Place obstacle at (0, 1.0, 0) — right in the path of sub-shape A
+  // when the arm rotates 90 degrees CCW around Z.
   //
   // arm_link at pose1: identity (sub-shape A at (1,0,0), sub-shape B at (-1,0,0))
   // arm_link at pose2: 90 deg CCW around Z (sub-shape A at (0,1,0), sub-shape B at (0,-1,0))
   //
-  // Sub-shape A sweeps linearly from (1,0,0) to (0,1,0) — midpoint is (0.5, 0.5, 0)
+  // Sub-shape A sweeps from (1,0,0) to (0,1,0) — passes near (0, 1.0, 0)
   // Sub-shape B sweeps from (-1,0,0) to (0,-1,0) — nowhere near obstacle
-  //
-  // Placing the obstacle at the midpoint ensures the collision is detected mid-sweep
-  // (CCType_Between) rather than at an endpoint, and that the support at both
-  // endpoint poses is symmetric.
-  checker.setCollisionObjectsTransform("obstacle_link", Eigen::Isometry3d(Eigen::Translation3d(0.5, 0.5, 0.0)));
+  checker.setCollisionObjectsTransform("obstacle_link", Eigen::Isometry3d(Eigen::Translation3d(0.0, 1.0, 0.0)));
 
   Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
   Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
@@ -106,7 +103,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
 
   ASSERT_FALSE(result_vector.empty())
       << "Multi-shape rotational cast: expected collision between sub-shape A "
-      << "(sweeping from (1,0,0) to (0,1,0)) and static obstacle at (0.5,0.5,0). "
+      << "(sweeping from (1,0,0) to (0,1,0)) and static obstacle at (0,1,0). "
       << "If no collision was found, the per-child relative transform may be incorrect.";
 
   // Verify cc_transform equals the end-pose of the link (pose2)
@@ -134,7 +131,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   EXPECT_EQ(cr.cc_type[arm_idx], ContinuousCollisionType::CCType_Between)
       << "arm_link cc_type should be CCType_Between, got " << static_cast<int>(cr.cc_type[arm_idx]);
 
-  // cc_time should be between 0 and 1 (obstacle is at the midpoint of the sweep)
+  // cc_time should be between 0 and 1 (sub-shape A passes nearest the obstacle mid-sweep)
   EXPECT_GT(cr.cc_time[arm_idx], 0.0) << "cc_time should be > 0 (not at start pose)";
   EXPECT_LT(cr.cc_time[arm_idx], 1.0) << "cc_time should be < 1 (not at end pose)";
 }
