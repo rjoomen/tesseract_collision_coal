@@ -88,6 +88,12 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
+  /// @brief Delegate to the underlying shape's node type so that Coal's
+  /// ComputeCollision constructor can find a valid function-matrix entry.
+  /// The functor is never actually called for CastHullShape (the custom
+  /// Schulman GJK path is used instead), but the constructor still does the lookup.
+  coal::NODE_TYPE getNodeType() const override { return shape_->getNodeType(); }
+
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
