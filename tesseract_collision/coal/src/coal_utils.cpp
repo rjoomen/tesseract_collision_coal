@@ -632,22 +632,17 @@ bool castHullCollide(coal::CollisionObject* o1,
     return false;
   }
 
-  // Extract witness points from GJK if it already has penetration info
+  // Always use EPA for CastHullShape penetration info.
+  // The Schulman support function is discontinuous (switches between start
+  // and end configurations), making GJK's simplex-based penetration normals
+  // unreliable. EPA's expanded polytope gives a more accurate minimum
+  // penetration direction, which is critical for correct cc_type classification
+  // in populateContinuousCollisionFields.
   coal::Scalar distance;
   coal::Vec3s p1, p2, normal;
 
-  if (gjk.status == coal::details::GJK::CollisionWithPenetrationInformation)
+  if (request.enable_contact)
   {
-    coal::Vec3ps p1_, p2_, normal_;
-    gjk.getWitnessPointsAndNormal(md, p1_, p2_, normal_);
-    p1 = p1_.cast<coal::Scalar>();
-    p2 = p2_.cast<coal::Scalar>();
-    normal = normal_.cast<coal::Scalar>();
-    distance = gjk.distance;
-  }
-  else if (request.enable_contact)
-  {
-    // Run EPA for penetration depth
     coal::details::EPA epa(request.epa_max_iterations, request.epa_tolerance);
     epa.evaluate(gjk, (-guess).cast<coal::SolverScalar>());
 
