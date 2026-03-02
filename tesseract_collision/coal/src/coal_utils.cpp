@@ -417,12 +417,10 @@ void populateContinuousCollisionFields(ContactResult& contact,
     coal::Vec3s pt_local0;
     double sup_local0 = 0;
     GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0);
-    coal::Vec3s pt_world0 = tf_world0.transform(pt_local0);
 
     coal::Vec3s pt_local1;
     double sup_local1 = 0;
     GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
-    coal::Vec3s pt_world1 = tf_world1.transform(pt_local1);
 
     // Compare LOCAL support values (underlying shape support in each rotated
     // normal direction) rather than world-frame supports. World-frame supports
