@@ -78,15 +78,17 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   checker.setActiveCollisionObjects({ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
-  // Place obstacle at (0, 1.0, 0) — right in the path of sub-shape A
-  // when the arm rotates 90 degrees CCW around Z.
+  // Place obstacle at (0.5, 0.5, 0) — along the MID-SWEEP path of sub-shape A.
   //
   // arm_link at pose1: identity (sub-shape A at (1,0,0), sub-shape B at (-1,0,0))
   // arm_link at pose2: 90 deg CCW around Z (sub-shape A at (0,1,0), sub-shape B at (0,-1,0))
   //
-  // Sub-shape A sweeps from (1,0,0) to (0,1,0) — passes near (0, 1.0, 0)
-  // Sub-shape B sweeps from (-1,0,0) to (0,-1,0) — nowhere near obstacle
-  checker.setCollisionObjectsTransform("obstacle_link", Eigen::Isometry3d(Eigen::Translation3d(0.0, 1.0, 0.0)));
+  // Sub-shape A sweeps linearly from (1,0,0) to (0,1,0) — midpoint is (0.5, 0.5, 0).
+  // The obstacle is centered on this midpoint, so the collision happens mid-sweep (not at
+  // an endpoint). This ensures cc_type is CCType_Between and cc_time is near 0.5.
+  //
+  // Sub-shape B sweeps from (-1,0,0) to (0,-1,0) — nowhere near obstacle.
+  checker.setCollisionObjectsTransform("obstacle_link", Eigen::Isometry3d(Eigen::Translation3d(0.5, 0.5, 0.0)));
 
   Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
   Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
@@ -103,7 +105,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
 
   ASSERT_FALSE(result_vector.empty())
       << "Multi-shape rotational cast: expected collision between sub-shape A "
-      << "(sweeping from (1,0,0) to (0,1,0)) and static obstacle at (0,1,0). "
+      << "(sweeping from (1,0,0) to (0,1,0)) and static obstacle at (0.5,0.5,0). "
       << "If no collision was found, the per-child relative transform may be incorrect.";
 
   // Verify cc_transform equals the end-pose of the link (pose2)
