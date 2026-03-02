@@ -424,16 +424,19 @@ void populateContinuousCollisionFields(ContactResult& contact,
     GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
     coal::Vec3s pt_world1 = tf_world1.transform(pt_local1);
 
-    // Compare support projections along the contact normal
-    double shape_sup0 = normal_world.dot(pt_world0);
-    double shape_sup1 = normal_world.dot(pt_world1);
-
-    if (shape_sup0 - shape_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
+    // Compare LOCAL support values (underlying shape support in each rotated
+    // normal direction) rather than world-frame supports. World-frame supports
+    // include the shape center translation (normal · center), which biases the
+    // comparison when the per-shape cast transform has a translational component
+    // (e.g., multi-shape links with non-identity local offsets under rotation).
+    // Local supports isolate the rotational effect on the shape's support,
+    // matching Bullet's behavior where compound children use link-level rotation.
+    if (sup_local0 - sup_local1 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
       contact.cc_time[i] = 0;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
     }
-    else if (shape_sup1 - shape_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
+    else if (sup_local1 - sup_local0 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
       contact.cc_time[i] = 1;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
