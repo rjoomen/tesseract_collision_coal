@@ -42,7 +42,6 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
@@ -57,7 +56,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
 #include <tesseract_collision/core/common.h>
-#include <tesseract_geometry/geometries.h>
 
 #include <tesseract_collision/coal/coal_collision_object_wrapper.h>
 #include <tesseract_collision/coal/coal_casthullshape.h>
@@ -454,20 +452,14 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
     {
       if (auto octree_geo = std::dynamic_pointer_cast<coal::OcTree>(geo); octree_geo != nullptr)
       {
-        // Expand occupied octree cells into castable sub-shapes.
+        // Expand occupied octree cells into castable box sub-shapes.
         const auto tree = octree_geo->getTree();
         assert(tree != nullptr);
         const auto& base_shape_pose = current_shape_poses[old_shape_index];
 
-        // Determine the octree subtype from the original tesseract geometry.
-        auto octree_geom =
-            std::dynamic_pointer_cast<const tesseract_geometry::Octree>(current_shapes[old_shape_index]);
-        assert(octree_geom != nullptr);
-        const auto sub_type = octree_geom->getSubType();
-
-        // Reuse one shape per tree depth level (all voxels at the same depth
+        // Reuse one box shape per tree depth level (all voxels at the same depth
         // have the same size), matching Bullet's managed_shapes pattern.
-        std::vector<std::shared_ptr<coal::ShapeBase>> managed_shapes(tree->getTreeDepth() + 1);
+        std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
 
         for (octomap::OcTree::iterator it = tree->begin(static_cast<unsigned char>(tree->getTreeDepth())),
                                     end = tree->end();
@@ -477,24 +469,13 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
           if (!octree_geo->isNodeOccupied(&(*it)))
             continue;
 
-          auto& voxel_shape = managed_shapes.at(it.getDepth());
-          if (voxel_shape == nullptr)
+          auto& box_shape = managed_boxes.at(it.getDepth());
+          if (box_shape == nullptr)
           {
             const double size = it.getSize();
-            switch (sub_type)
-            {
-              case tesseract_geometry::OctreeSubType::BOX:
-                voxel_shape = std::make_shared<coal::Box>(size, size, size);
-                break;
-              case tesseract_geometry::OctreeSubType::SPHERE_INSIDE:
-                voxel_shape = std::make_shared<coal::Sphere>(size / 2.0);
-                break;
-              case tesseract_geometry::OctreeSubType::SPHERE_OUTSIDE:
-                voxel_shape = std::make_shared<coal::Sphere>(std::sqrt(2.0 * (size / 2.0) * (size / 2.0)));
-                break;
-            }
+            box_shape = std::make_shared<coal::Box>(size, size, size);
           }
-          auto cast_shape = std::make_shared<CastHullShape>(voxel_shape, identity_tf);
+          auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
 
           Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
           voxel_pose.translation() = Eigen::Vector3d(it.getX(), it.getY(), it.getZ());
@@ -517,7 +498,7 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
       else
       {
         throw std::runtime_error("I can only continuous collision check convex shapes, compound shapes made of "
-                                 "convex shapes, and octrees");
+                                 "convex shapes, and octree boxes");
       }
     }
   }
