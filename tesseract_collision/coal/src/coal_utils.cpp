@@ -774,12 +774,17 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (is_cast_hull)
   {
     // CastHullShape path: use custom GJK with Schulman support function.
-    // Uses DefaultGJK (no acceleration) because PolyakAcceleration's momentum
-    // interferes with the discontinuous Schulman support, causing convergence
-    // failures for shapes with continuous support functions (Sphere, etc.).
+    // Uses a separate lightweight cache (CollisionRequest only) to avoid creating
+    // coal::ComputeCollision for CastHullShape. ComputeCollision's constructor
+    // resolves a type-specific collision solver based on getNodeType(), which for
+    // CastHullShape delegates to the underlying shape. This causes the solver to
+    // static_cast the CastHullShape to the wrong type (e.g., coal::Sphere),
+    // producing undefined behavior that manifests as 100% CPU and memory overflow
+    // in multithreaded production use.
+    assert(cdata->cast_collision_cache != nullptr);
     CollisionObjectPair object_pair = std::make_pair(o1, o2);
-    auto col_request_it = cdata->collision_cache->find(object_pair);
-    if (col_request_it == cdata->collision_cache->end())
+    auto col_request_it = cdata->cast_collision_cache->find(object_pair);
+    if (col_request_it == cdata->cast_collision_cache->end())
     {
       coal::CollisionRequest col_request;
       // Use DefaultGJK — do NOT set gjk_variant, convergence_criterion, or
@@ -792,29 +797,18 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // Using security_margin as the GJK early-break threshold would cause GJK to
       // return NoCollisionEarlyStopped before the simplex encloses the origin.
       col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-      // Dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type).
-      // Unwrap CastHullShape to the underlying geometry to avoid Coal trying to
-      // dispatch support functions on CastHullShape as if it were the delegated node type.
-      const coal::CollisionGeometry* g1 = o1->collisionGeometry().get();
-      const coal::CollisionGeometry* g2 = o2->collisionGeometry().get();
-      if (const auto* cast_g1 = dynamic_cast<const CastHullShape*>(g1); cast_g1 != nullptr)
-        g1 = cast_g1->getUnderlyingShape().get();
-      if (const auto* cast_g2 = dynamic_cast<const CastHullShape*>(g2); cast_g2 != nullptr)
-        g2 = cast_g2->getUnderlyingShape().get();
-      auto col_functor = coal::ComputeCollision(g1, g2);
-      col_request_it =
-          cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
+      col_request_it = cdata->cast_collision_cache->try_emplace(object_pair, std::move(col_request)).first;
     }
     else
     {
-      auto& cached_request = col_request_it->second.second;
+      auto& cached_request = col_request_it->second;
       cached_request.enable_contact = cdata->req.calculate_penetration;
       cached_request.num_max_contacts = num_contacts;
       cached_request.security_margin = security_margin;
       cached_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
     }
 
-    auto& cached_request = col_request_it->second.second;
+    auto& cached_request = col_request_it->second;
     castHullCollide(o1, o2, cached_request, col_result);
 
     if (cached_request.gjk_initial_guess != coal::CachedGuess)
