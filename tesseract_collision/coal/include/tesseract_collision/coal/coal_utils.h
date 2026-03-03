@@ -355,8 +355,11 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
     {
-      // This link was static but is now dynamic
-      for (const auto& co : reg_objects)
+      // This link was static but is now dynamic.
+      // For non-ShapeBase geometries (e.g., octree) the cast representation was
+      // registered in the static manager, so unregister those objects.
+      const auto& static_objects = regular_has_non_shape_base ? cast_objects : reg_objects;
+      for (const auto& co : static_objects)
       {
         static_manager->unregisterObject(co.get());
       }
@@ -454,6 +457,10 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
         assert(tree != nullptr);
         const auto& base_shape_pose = current_shape_poses[old_shape_index];
 
+        // Reuse one box shape per tree depth level (all voxels at the same depth
+        // have the same size), matching Bullet's managed_shapes pattern.
+        std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
+
         for (octomap::OcTree::iterator it = tree->begin(static_cast<unsigned char>(tree->getTreeDepth())),
                                     end = tree->end();
              it != end;
@@ -462,8 +469,12 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
           if (!octree_geo->isNodeOccupied(&(*it)))
             continue;
 
-          const auto size = it.getSize();
-          auto box_shape = std::make_shared<coal::Box>(size, size, size);
+          auto& box_shape = managed_boxes.at(it.getDepth());
+          if (box_shape == nullptr)
+          {
+            const auto size = it.getSize();
+            box_shape = std::make_shared<coal::Box>(size, size, size);
+          }
           auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
 
           Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
