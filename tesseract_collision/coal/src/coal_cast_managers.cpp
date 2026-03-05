@@ -386,8 +386,11 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
       {
         if (auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get()))
         {
-          // Update the cast transform with the relative transform
+          // Update the cast transform with the relative transform.
+          // updateCastTransform() recomputes aabb_local for the new swept volume.
           cast_shape->updateCastTransform(relative_transform);
+          // Re-compute the world-space AABB now that aabb_local has changed.
+          co->updateAABB();
         }
       }
 

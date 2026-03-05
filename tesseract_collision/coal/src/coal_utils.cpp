@@ -62,7 +62,10 @@ namespace
 {
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Plane::ConstPtr& geom)
 {
-  return std::make_shared<coal::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
+  // Coal recommends Halfspace over Plane for collision detection:
+  // "prefer using a Halfspace instead of a Plane if possible, it has better
+  // behavior w.r.t. collision detection algorithms."
+  return std::make_shared<coal::Halfspace>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Box::ConstPtr& geom)
@@ -100,13 +103,14 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
   auto g = std::make_shared<coal::BVHModel<coal::OBBRSS>>();
   if (vertex_count > 0 && triangle_count > 0)
   {
-    std::vector<coal::Triangle> tri_indices(static_cast<size_t>(triangle_count));
+    std::vector<coal::Triangle32> tri_indices(static_cast<size_t>(triangle_count));
     for (int i = 0; i < triangle_count; ++i)
     {
       assert(triangles[4L * i] == 3);
-      tri_indices[static_cast<size_t>(i)] = coal::Triangle(static_cast<size_t>(triangles[(4 * i) + 1]),
-                                                           static_cast<size_t>(triangles[(4 * i) + 2]),
-                                                           static_cast<size_t>(triangles[(4 * i) + 3]));
+      tri_indices[static_cast<size_t>(i)] =
+          coal::Triangle32(static_cast<uint32_t>(triangles[(4 * i) + 1]),
+                           static_cast<uint32_t>(triangles[(4 * i) + 2]),
+                           static_cast<uint32_t>(triangles[(4 * i) + 3]));
     }
 
     g->beginModel();
@@ -120,55 +124,6 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Mesh::ConstP
   return nullptr;
 }
 
-// Coal polygon type (modelled after TriangleTpl)
-template <typename IndexType_>
-struct PolygonTpl : Eigen::Matrix<IndexType_, -1, 1>
-{
-  using IndexType = IndexType_;
-  using size_type = int;
-
-  // template <typename OtherIndexType>
-  // friend class Polygon;
-
-  /// @brief Default constructor
-  PolygonTpl() = default;
-
-  /// @brief Copy constructor
-  PolygonTpl(const PolygonTpl& other) : Eigen::Matrix<IndexType_, -1, 1>(other) {}
-
-  /// @brief Copy constructor from another vertex index type.
-  template <typename OtherIndexType>
-  PolygonTpl(const PolygonTpl<OtherIndexType>& other)
-  {
-    *this = other;
-  }
-
-  /// @brief Copy operator
-  PolygonTpl& operator=(const PolygonTpl& other)
-  {
-    this->_set(other);
-    return *this;
-  }
-
-  /// @brief Copy operator from another index type.
-  template <typename OtherIndexType>
-  PolygonTpl& operator=(const PolygonTpl<OtherIndexType>& other)
-  {
-    *this = other.template cast<OtherIndexType>();
-    return *this;
-  }
-
-  template <typename OtherIndexType>
-  PolygonTpl<OtherIndexType> cast() const
-  {
-    PolygonTpl<OtherIndexType> res;
-    res._set(*this);
-    return res;
-  }
-};
-
-using Polygon = PolygonTpl<std::uint32_t>;
-
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::ConstPtr& geom)
 {
   const auto vertex_count = geom->getVertexCount();
@@ -179,23 +134,45 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::
   {
     auto vertices = std::const_pointer_cast<tesseract_common::VectorVector3d>(geom->getVertices());
 
-    auto new_faces = std::make_shared<std::vector<Polygon>>();
-    new_faces->reserve(face_count);
-    for (int i = 0; i < faces.size(); ++i)
+    // Fan-triangulate each polygon face into coal::Triangle32 faces.
+    // This eliminates the need for a custom variable-length polygon type and
+    // lets Coal use its native triangle-based Convex support functions.
+    auto tri_faces = std::make_shared<std::vector<coal::Triangle32>>();
+    // Pre-compute the exact triangle count to avoid reallocations.
+    // A polygon with n vertices produces (n-2) triangles via fan triangulation.
     {
-      Polygon new_face;
-      // First value of each face is the number of vertices
-      new_face.resize(faces[i]);
-      for (std::uint32_t& j : new_face)
+      size_t tri_count = 0;
+      for (int i = 0; i < faces.size();)
       {
-        ++i;
-        j = faces[i];
+        const int n = faces[i++];
+        if (n < 0 || i + n > static_cast<int>(faces.size()))
+          break;  // malformed data
+        if (n >= 3)
+          tri_count += static_cast<size_t>(n - 2);
+        i += n;
       }
-      new_faces->emplace_back(new_face);
+      tri_faces->reserve(tri_count);
     }
-    assert(new_faces->size() == face_count);
+    for (int i = 0; i < faces.size();)
+    {
+      const int n = faces[i++];  // number of vertices in this polygon
+      if (n < 0 || i + n > static_cast<int>(faces.size()))
+        break;   // malformed data
+      if (n < 3)  // skip degenerate faces (points or edges)
+      {
+        i += n;
+        continue;
+      }
+      const auto v0 = static_cast<uint32_t>(faces[i]);
+      for (int j = 1; j < n - 1; ++j)
+        tri_faces->emplace_back(v0,
+                                static_cast<uint32_t>(faces[i + j]),
+                                static_cast<uint32_t>(faces[i + j + 1]));
+      i += n;
+    }
 
-    return std::make_shared<coal::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
+    return std::make_shared<coal::Convex<coal::Triangle32>>(
+        vertices, static_cast<unsigned int>(vertex_count), tri_faces, static_cast<unsigned int>(tri_faces->size()));
   }
 
   CONSOLE_BRIDGE_logError("The mesh is empty!");

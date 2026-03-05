@@ -4,7 +4,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/coal/coal_casthullshape.h>
-#include <tesseract_collision/coal/coal_casthullshape_utility.h>
 
 using namespace tesseract_collision;
 
