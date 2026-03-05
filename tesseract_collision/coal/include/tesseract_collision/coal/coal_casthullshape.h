@@ -43,13 +43,9 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
-#include <console_bridge/console.h>
 #include <coal/shape/geometric_shapes.h>
+#include <coal/narrowphase/support_data.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
-
-#include <tesseract_collision/core/types.h>
-#include <tesseract_collision/core/common.h>
-#include <tesseract_collision/coal/coal_collision_object_wrapper.h>
 
 namespace tesseract_collision::tesseract_collision_coal
 {
@@ -75,23 +71,24 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
-  void computeSweptVertices();
+  /// @brief GJK/EPA support function (required for Coal native collision/distance).
+  /// @param dir support direction, always unit-length when called by Coal.
+  /// @param support output: the point in the swept shape maximising dot(p, dir).
+  /// @param hint warm-start hint for convex shapes.
+  /// @param data temporary data for support computation.
+  /// @note Do NOT add the swept-sphere radius here; Coal applies it externally.
+  void computeShapeSupport(const coal::Vec3s& dir,
+                           coal::Vec3s& support,
+                           int& hint,
+                           coal::details::ShapeSupportData& data) const override;
 
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
-  /// @brief An array of the points of the swept polytope.
-  std::shared_ptr<std::vector<coal::Vec3s>> swept_vertices_;
 
-  // Helper methods to extract vertices based on shape type
-  std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
-  std::vector<coal::Vec3s> extractVerticesFromBox(const coal::Box* box) const;
-  std::vector<coal::Vec3s> extractVerticesFromSphere(const coal::Sphere* sphere, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCylinder(const coal::Cylinder* cylinder, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCone(const coal::Cone* cone, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints = 8) const;
-  std::vector<coal::Vec3s> extractVerticesFromConvex(const coal::ConvexBase32* convex) const;
+  /// @brief Helper: compute the AABB of the swept volume using 6 support queries.
+  coal::AABB computeSweptAABB() const;
 };
 
 }  // namespace tesseract_collision::tesseract_collision_coal

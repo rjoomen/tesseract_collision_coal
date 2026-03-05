@@ -39,23 +39,11 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <coal/broadphase/broadphase_collision_manager.h>
-#include <coal/collision.h>
-#include <coal/distance.h>
+#include <coal/narrowphase/support_functions.h>
 #include <console_bridge/console.h>
-#include <algorithm>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract_collision/core/types.h>
-#include <tesseract_collision/core/common.h>
-
-#include <tesseract_collision/coal/coal_collision_object_wrapper.h>
 #include <tesseract_collision/coal/coal_casthullshape.h>
-#include <tesseract_collision/coal/coal_casthullshape_utility.h>
-
-#include <tesseract_geometry/conversions.h>
-#include <tesseract_geometry/geometries.h>
-#include <tesseract_geometry/utils.h>
 
 namespace tesseract_collision::tesseract_collision_coal
 {
@@ -64,35 +52,18 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
   , castTransform_(castTransform)
   , castTransformInv_(coal::Transform3s(castTransform).inverse())
 {
-  swept_vertices_ = std::make_shared<std::vector<coal::Vec3s>>();
-  // Compute swept vertices
-  computeSweptVertices();
 }
 
 void CastHullShape::computeLocalAABB()
 {
-  // Consistent with Coal pattern, use the external computeBV function
-  // Create an identity transform since we're computing the local AABB
-  coal::Transform3s tf = coal::Transform3s::Identity();
-
-  // Create an AABB object to hold the result
-  coal::AABB aabb;
-
-  // Call the external computeBV function
-  coal::computeBV<coal::AABB, CastHullShape>(*this, tf, aabb);
-
-  // Update the shape's AABB members
+  const coal::AABB aabb = computeSweptAABB();
   aabb_local = aabb;
   aabb_center = aabb_local.center();
-  aabb_radius = (aabb_local.min_ - aabb_center).norm();
+  aabb_radius = (aabb_local.max_ - aabb_center).norm();
 }
 
 double CastHullShape::computeVolume() const
 {
-  // For swept shapes, we need to compute the volume of the convex hull
-  // of the original shape and its transformed position.
-  // This is a complex geometric problem, so we'll use a reasonable approximation.
-
   // Get the base volume
   double baseVolume = shape_->computeVolume();
 
@@ -110,16 +81,9 @@ double CastHullShape::computeVolume() const
     return baseVolume;
   }
 
-  // For approximation, compute the volume using the swept AABB
-  // We need to compute the AABB of the swept shape
-  coal::Transform3s identity = coal::Transform3s::Identity();
-  coal::AABB swept_aabb;
-  coal::computeBV<coal::AABB, CastHullShape>(*this, identity, swept_aabb);
-
-  double sweptVolume = swept_aabb.volume();
-
-  // The swept volume should be at least the base volume
-  return std::max(baseVolume, sweptVolume);
+  // Approximate using the swept AABB volume
+  const coal::AABB swept_aabb = computeSweptAABB();
+  return std::max(baseVolume, swept_aabb.volume());
 }
 
 bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
@@ -136,134 +100,55 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
-  computeSweptVertices();
 }
 
-void CastHullShape::computeSweptVertices()
+void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
+                                        coal::Vec3s& support,
+                                        int& hint,
+                                        coal::details::ShapeSupportData& /*data*/) const
 {
-  // Extract vertices from the underlying shape
-  std::vector<coal::Vec3s> baseVertices = extractVertices(shape_.get());
+  const coal::ShapeBase* shape = shape_.get();
 
-  // Store both start and end positions
-  swept_vertices_->clear();
-  swept_vertices_->reserve(baseVertices.size() * 2);
+  // Support at pose 0 (identity — shape in its own local frame)
+  const coal::Vec3s s0 =
+      coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(shape, dir, hint);
 
-  // Add vertices at starting position
-  for (const auto& vertex : baseVertices)
+  // Support at pose 1 (cast transform applied).
+  // Transform the query direction into the local frame of the end pose,
+  // compute the support there, then transform the result back.
+  const coal::Vec3s dir_cast = castTransformInv_.getRotation() * dir;
+  const coal::Vec3s s1_local =
+      coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(shape, dir_cast, hint);
+  const coal::Vec3s s1 = castTransform_.transform(s1_local);
+
+  // Return whichever endpoint is furthest along dir.
+  support = (dir.dot(s0) >= dir.dot(s1)) ? s0 : s1;
+}
+
+coal::AABB CastHullShape::computeSweptAABB() const
+{
+  int hint = 0;
+  coal::details::ShapeSupportData data;
+  coal::Vec3s support;
+  coal::Vec3s min_pt;
+  coal::Vec3s max_pt;
+
+  for (int i = 0; i < 3; ++i)
   {
-    swept_vertices_->push_back(vertex);
-  }
-  // Add vertices at ending position (after transform)
-  for (const auto& vertex : baseVertices)
-  {
-    coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
-    swept_vertices_->push_back(transformed_vertex);
-  }
-}
-
-// Extract vertices based on shape type
-std::vector<coal::Vec3s> CastHullShape::extractVertices(const coal::ShapeBase* geometry) const
-{
-  // Try to cast to specific shape types and extract vertices
-  if (const auto* box = dynamic_cast<const coal::Box*>(geometry))
-    return extractVerticesFromBox(box);
-  if (const auto* sphere = dynamic_cast<const coal::Sphere*>(geometry))
-    return extractVerticesFromSphere(sphere);
-  if (const auto* cylinder = dynamic_cast<const coal::Cylinder*>(geometry))
-    return extractVerticesFromCylinder(cylinder);
-  if (const auto* cone = dynamic_cast<const coal::Cone*>(geometry))
-    return extractVerticesFromCone(cone);
-  if (const auto* capsule = dynamic_cast<const coal::Capsule*>(geometry))
-    return extractVerticesFromCapsule(capsule);
-  if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(geometry))
-    return extractVerticesFromConvex(convex);
-
-  // Ellipsoid
-  // Halfspace
-  // Plane
-
-  // Fallback: use AABB corners
-  coal::AABB aabb = geometry->aabb_local;
-
-  std::vector<coal::Vec3s> corners;
-  corners.reserve(8);
-  corners.emplace_back(aabb.min_[0], aabb.min_[1], aabb.min_[2]);
-  corners.emplace_back(aabb.max_[0], aabb.min_[1], aabb.min_[2]);
-  corners.emplace_back(aabb.min_[0], aabb.max_[1], aabb.min_[2]);
-  corners.emplace_back(aabb.max_[0], aabb.max_[1], aabb.min_[2]);
-  corners.emplace_back(aabb.min_[0], aabb.min_[1], aabb.max_[2]);
-  corners.emplace_back(aabb.max_[0], aabb.min_[1], aabb.max_[2]);
-  corners.emplace_back(aabb.min_[0], aabb.max_[1], aabb.max_[2]);
-  corners.emplace_back(aabb.max_[0], aabb.max_[1], aabb.max_[2]);
-
-  return corners;
-}
-
-// Extract vertices from Box
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromBox(const coal::Box* box) const
-{
-  const coal::Vec3s& half_side = box->halfSide;
-
-  std::vector<coal::Vec3s> corners;
-  corners.reserve(8);
-  corners.emplace_back(-half_side[0], -half_side[1], -half_side[2]);
-  corners.emplace_back(half_side[0], -half_side[1], -half_side[2]);
-  corners.emplace_back(-half_side[0], half_side[1], -half_side[2]);
-  corners.emplace_back(half_side[0], half_side[1], -half_side[2]);
-  corners.emplace_back(-half_side[0], -half_side[1], half_side[2]);
-  corners.emplace_back(half_side[0], -half_side[1], half_side[2]);
-  corners.emplace_back(-half_side[0], half_side[1], half_side[2]);
-  corners.emplace_back(half_side[0], half_side[1], half_side[2]);
-
-  return corners;
-}
-
-// Extract vertices approximating a Sphere
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromSphere(const coal::Sphere* sphere, int numPoints) const
-{
-  auto geom = tesseract_geometry::Sphere(sphere->radius);
-  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
-
-  return *mesh->getVertices();
-}
-
-// Extract vertices approximating a Cylinder
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCylinder(const coal::Cylinder* cylinder, int numPoints) const
-{
-  auto geom = tesseract_geometry::Cylinder(cylinder->radius, cylinder->halfLength * 2.0);
-  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
-
-  return *mesh->getVertices();
-}
-
-// Extract vertices approximating a Cone
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCone(const coal::Cone* cone, int numPoints) const
-{
-  auto geom = tesseract_geometry::Cone(cone->radius, cone->halfLength * 2.0);
-  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
-
-  return *mesh->getVertices();
-}
-
-// Extract vertices approximating a Capsule
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints) const
-{
-  auto geom = tesseract_geometry::Capsule(capsule->radius, capsule->halfLength * 2.0);
-  auto mesh = tesseract_geometry::toTriangleMesh(geom, 0.002);
-
-  return *mesh->getVertices();
-}
-
-// Extract vertices from ConvexBase
-std::vector<coal::Vec3s> CastHullShape::extractVerticesFromConvex(const coal::ConvexBase32* convex) const
-{
-  std::vector<coal::Vec3s> vertices;
-  if (!convex->points->empty())
-  {
-    vertices = *convex->points;
+    coal::Vec3s dir = coal::Vec3s::Zero();
+    dir[i] = coal::Scalar(1);
+    hint = 0;
+    computeShapeSupport(dir, support, hint, data);
+    max_pt[i] = support[i];
+    hint = 0;
+    computeShapeSupport(-dir, support, hint, data);
+    min_pt[i] = support[i];
   }
 
-  return vertices;
+  coal::AABB aabb;
+  aabb.min_ = min_pt;
+  aabb.max_ = max_pt;
+  return aabb;
 }
 
 }  // namespace tesseract_collision::tesseract_collision_coal
