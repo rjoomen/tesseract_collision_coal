@@ -62,7 +62,10 @@ namespace
 {
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Plane::ConstPtr& geom)
 {
-  return std::make_shared<coal::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
+  // Coal recommends Halfspace over Plane for collision detection:
+  // "prefer using a Halfspace instead of a Plane if possible, it has better
+  // behavior w.r.t. collision detection algorithms."
+  return std::make_shared<coal::Halfspace>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Box::ConstPtr& geom)
