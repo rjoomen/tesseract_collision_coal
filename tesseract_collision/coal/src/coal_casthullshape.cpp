@@ -40,7 +40,6 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/narrowphase/support_functions.h>
-#include <console_bridge/console.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/coal/coal_casthullshape.h>
@@ -59,7 +58,7 @@ void CastHullShape::computeLocalAABB()
   const coal::AABB aabb = computeSweptAABB();
   aabb_local = aabb;
   aabb_center = aabb_local.center();
-  aabb_radius = (aabb_local.max_ - aabb_center).norm();
+  aabb_radius = (aabb_local.max_ - aabb_local.min_).norm() * coal::Scalar(0.5);
 }
 
 double CastHullShape::computeVolume() const
@@ -100,6 +99,9 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
+  // Recompute aabb_local so that subsequent calls to computeAABB() on the
+  // enclosing CollisionObject produce a correct world-space AABB.
+  computeLocalAABB();
 }
 
 void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
@@ -137,10 +139,8 @@ coal::AABB CastHullShape::computeSweptAABB() const
   {
     coal::Vec3s dir = coal::Vec3s::Zero();
     dir[i] = coal::Scalar(1);
-    hint = 0;
     computeShapeSupport(dir, support, hint, data);
     max_pt[i] = support[i];
-    hint = 0;
     computeShapeSupport(-dir, support, hint, data);
     min_pt[i] = support[i];
   }
