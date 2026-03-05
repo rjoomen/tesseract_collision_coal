@@ -9,7 +9,6 @@ find_package(tesseract_geometry)
 add_library(
   ${PROJECT_NAME}_coal
   src/coal_cast_managers.cpp
-  src/coal_casthullshape_utility.cpp
   src/coal_casthullshape.cpp
   src/coal_collision_geometry_cache.cpp
   src/coal_collision_object_wrapper.cpp
