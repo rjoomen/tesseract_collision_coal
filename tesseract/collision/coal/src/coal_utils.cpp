@@ -482,12 +482,11 @@ void GetAverageSupport(const coal::ShapeBase* shape,
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const CollisionObjectWrapper* cd2,
                          const tesseract::common::LinkIdPair& pair,
-                         const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
-                         bool verbose)
+                         const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator)
 {
   return cd1->m_enabled && cd2->m_enabled && (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
          (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&                                      // NOLINT
-         !isContactAllowed(pair, validator, verbose);
+         !isContactAllowed(pair, validator);
 }
 
 /**
@@ -655,7 +654,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   auto link_pair = tesseract::common::LinkIdPair(cd1->getLinkId(), cd2->getLinkId());
 
-  if (!needsCollisionCheck(cd1, cd2, link_pair, cdata->validator, false))
+  if (!needsCollisionCheck(cd1, cd2, link_pair, cdata->validator))
     return false;
 
   std::size_t num_contacts = (cdata->req.contact_limit > 0) ? static_cast<std::size_t>(cdata->req.contact_limit) :

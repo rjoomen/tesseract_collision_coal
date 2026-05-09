@@ -256,14 +256,12 @@ inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
  * @param cow1 The first collision object
  * @param cow2 The second collision object
  * @param validator  The contact allowed validator
- * @param verbose Indicate if verbose information should be printed to the terminal
  * @return True if the two collision objects should be checked for collision, otherwise false
  */
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const CollisionObjectWrapper* cd2,
                          const tesseract::common::LinkIdPair& pair,
-                         const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
-                         bool verbose = false);
+                         const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator);
 
 struct ContactTestDataWrapper : ContactTestData
 {
