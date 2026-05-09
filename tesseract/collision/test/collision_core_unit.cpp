@@ -25,6 +25,23 @@ public:
   }
 };
 
+/**
+ * @brief Build a ContactResult whose link_ids match the given key names.
+ *
+ * Required for ContactResultMap cereal round-trip tests: the master-compatible wire format
+ * persists each entry's link names from results.front().link_ids[0/1].name(), and rebuilds
+ * the LinkIdPair key on load. Default-constructed ContactResult has empty link_ids and would
+ * collapse all keys to ("","") on the wire.
+ */
+inline tesseract::collision::ContactResult makeContactResultForKey(const tesseract::common::LinkId& a,
+                                                                   const tesseract::common::LinkId& b)
+{
+  tesseract::collision::ContactResult cr;
+  cr.link_ids[0] = a;
+  cr.link_ids[1] = b;
+  return cr;
+}
+
 TEST(TesseractCoreUnit, ContactManagerConfigTest)  // NOLINT
 {
   {  // Default Construction
@@ -440,12 +457,21 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     tesseract::common::testSerialization<tesseract::collision::ContactResultMap>(result_map, "ContactResultMap");
   }
 
-  auto key1 = tesseract::common::LinkIdPair("link1", "link2");
-  auto key2 = tesseract::common::LinkIdPair("link2", "link3");
+  // Named link IDs so we can populate ContactResult::link_ids — the master-compatible
+  // ContactResultMap cereal save extracts names from results.front().link_ids[0/1] and the
+  // load reconstructs the LinkIdPair key from those names. Default-constructed ContactResult
+  // would collapse all map keys to ("","") on the wire.
+  const tesseract::common::LinkId link1{ "link1" };
+  const tesseract::common::LinkId link2{ "link2" };
+  const tesseract::common::LinkId link3{ "link3" };
+  auto key1 = tesseract::common::LinkIdPair(link1, link2);
+  auto key2 = tesseract::common::LinkIdPair(link2, link3);
+  const auto cr_key1 = makeContactResultForKey(link1, link2);
+  const auto cr_key2 = makeContactResultForKey(link2, link3);
 
   {  // Test addContactResult single method
     tesseract::collision::ContactResultMap result_map;
-    result_map.addContactResult(key1, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key1, cr_key1);
     EXPECT_FALSE(result_map.getSummary().empty());
     EXPECT_EQ(result_map.count(), 1);
     EXPECT_EQ(result_map.size(), 1);
@@ -461,7 +487,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
     tesseract::common::testSerialization<tesseract::collision::ContactResultMap>(result_map, "ContactResultMap");
 
-    result_map.addContactResult(key1, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key1, cr_key1);
     EXPECT_FALSE(result_map.getSummary().empty());
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 1);
@@ -477,7 +503,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
     tesseract::common::testSerialization<tesseract::collision::ContactResultMap>(result_map, "ContactResultMap");
 
-    result_map.addContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key2, cr_key2);
     EXPECT_FALSE(result_map.getSummary().empty());
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
@@ -538,7 +564,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // Test addContactResult vector method
     tesseract::collision::ContactResultMap result_map;
-    result_map.addContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.addContactResult(key1, { cr_key1, cr_key1 });
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -551,7 +577,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 2);
 
-    result_map.addContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.addContactResult(key1, { cr_key1, cr_key1 });
     EXPECT_EQ(result_map.count(), 4);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -564,7 +590,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 4);
 
-    result_map.addContactResult(key2, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.addContactResult(key2, { cr_key2, cr_key2 });
     EXPECT_EQ(result_map.count(), 6);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -597,7 +623,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // Test setContactResult single method
     tesseract::collision::ContactResultMap result_map;
-    result_map.setContactResult(key1, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key1, cr_key1);
     EXPECT_EQ(result_map.count(), 1);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -610,7 +636,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 1);
 
-    result_map.addContactResult(key1, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key1, cr_key1);
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -623,7 +649,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 2);
 
-    result_map.setContactResult(key1, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key1, cr_key1);
     EXPECT_EQ(result_map.count(), 1);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -636,7 +662,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 1);
 
-    result_map.setContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -682,7 +708,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // Test setContactResult vector method
     tesseract::collision::ContactResultMap result_map;
-    result_map.setContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.setContactResult(key1, { cr_key1, cr_key1 });
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -695,7 +721,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 2);
 
-    result_map.addContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.addContactResult(key1, { cr_key1, cr_key1 });
     EXPECT_EQ(result_map.count(), 4);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -708,7 +734,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 4);
 
-    result_map.setContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.setContactResult(key1, { cr_key1, cr_key1 });
     EXPECT_EQ(result_map.count(), 2);
     EXPECT_EQ(result_map.size(), 1);
     EXPECT_FALSE(result_map.empty());
@@ -721,7 +747,7 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 2);
 
-    result_map.setContactResult(key2, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
+    result_map.setContactResult(key2, { cr_key2, cr_key2 });
     EXPECT_EQ(result_map.count(), 4);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -752,8 +778,8 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // flatten move
     tesseract::collision::ContactResultMap result_map;
-    result_map.setContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
-    result_map.addContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key1, { cr_key1, cr_key1 });
+    result_map.addContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -794,8 +820,8 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // flatten copy
     tesseract::collision::ContactResultMap result_map;
-    result_map.addContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
-    result_map.setContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key1, { cr_key1, cr_key1 });
+    result_map.setContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -834,8 +860,8 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // flatten reference wrapper
     tesseract::collision::ContactResultMap result_map;
-    result_map.setContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
-    result_map.addContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key1, { cr_key1, cr_key1 });
+    result_map.addContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -874,8 +900,8 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // flatten reference wrapper const
     tesseract::collision::ContactResultMap result_map;
-    result_map.addContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
-    result_map.setContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.addContactResult(key1, { cr_key1, cr_key1 });
+    result_map.setContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
@@ -914,8 +940,8 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
 
   {  // filter
     tesseract::collision::ContactResultMap result_map;
-    result_map.setContactResult(key1, { tesseract::collision::ContactResult{}, tesseract::collision::ContactResult{} });
-    result_map.addContactResult(key2, tesseract::collision::ContactResult{});
+    result_map.setContactResult(key1, { cr_key1, cr_key1 });
+    result_map.addContactResult(key2, cr_key2);
     EXPECT_EQ(result_map.count(), 3);
     EXPECT_EQ(result_map.size(), 2);
     EXPECT_FALSE(result_map.empty());
