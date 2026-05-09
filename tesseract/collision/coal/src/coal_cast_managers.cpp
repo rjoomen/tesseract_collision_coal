@@ -200,6 +200,12 @@ bool CoalCastBVHManager::isCollisionObjectEnabled(const tesseract::common::LinkI
   return false;
 }
 
+Eigen::Isometry3d CoalCastBVHManager::getCollisionObjectsTransform(const tesseract::common::LinkId& id) const
+{
+  // Returns pose1 (start) — link2cow_ tracks the start pose; pose2 is encoded in the cast hull and unrecoverable.
+  return link2cow_.at(id)->getCollisionObjectsTransform();
+}
+
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
 {
   static_update_.clear();

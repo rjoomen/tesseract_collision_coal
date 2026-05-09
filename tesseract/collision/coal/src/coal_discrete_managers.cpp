@@ -192,6 +192,11 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::commo
   }
 }
 
+Eigen::Isometry3d CoalDiscreteBVHManager::getCollisionObjectsTransform(const tesseract::common::LinkId& id) const
+{
+  return link2cow_.at(id)->getCollisionObjectsTransform();
+}
+
 void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
 {
   static_update_.clear();

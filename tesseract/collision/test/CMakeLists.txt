@@ -82,6 +82,7 @@ add_gtest(${PROJECT_NAME}_octomap_cast_static_update_unit collision_octomap_cast
 add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)
+add_gtest(${PROJECT_NAME}_get_objects_transform_unit get_collision_objects_transform_unit.cpp)
 
 add_gtest(${PROJECT_NAME}_coal_casthullshape_unit coal/coal_casthullshape_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_casthullshape_behavior_unit coal/coal_casthullshape_behavior_unit.cpp)
