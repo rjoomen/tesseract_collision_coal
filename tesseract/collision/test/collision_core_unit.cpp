@@ -2306,14 +2306,14 @@ TEST(TesseractCoreUnit, ACMContactAllowedValidatorLinkIdUnit)  // NOLINT
   tesseract::common::ACMContactAllowedValidator validator(acm);
 
   // Allowed pairs
-  EXPECT_TRUE(validator(tesseract::common::LinkIdPair("link_a", "link_b")));
-  EXPECT_TRUE(validator(tesseract::common::LinkIdPair("link_b", "link_a")));
-  EXPECT_TRUE(validator(tesseract::common::LinkIdPair("link_c", "link_d")));
+  EXPECT_TRUE(validator({ "link_a", "link_b" }));
+  EXPECT_TRUE(validator({ "link_b", "link_a" }));
+  EXPECT_TRUE(validator({ "link_c", "link_d" }));
 
   // Disallowed pairs
-  EXPECT_FALSE(validator(tesseract::common::LinkIdPair("link_a", "link_c")));
-  EXPECT_FALSE(validator(tesseract::common::LinkIdPair("link_a", "link_d")));
-  EXPECT_FALSE(validator(tesseract::common::LinkIdPair("link_x", "link_y")));
+  EXPECT_FALSE(validator({ "link_a", "link_c" }));
+  EXPECT_FALSE(validator({ "link_a", "link_d" }));
+  EXPECT_FALSE(validator({ "link_x", "link_y" }));
 }
 
 TEST(TesseractCoreUnit, ProcessResultLinkIdPairKeyUnit)  // NOLINT
