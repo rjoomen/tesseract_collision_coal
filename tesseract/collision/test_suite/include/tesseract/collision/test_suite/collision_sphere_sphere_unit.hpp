@@ -29,7 +29,7 @@ inline void printContactResults(const std::string& label, const ContactResultVec
   for (std::size_t index = 0; index < results.size(); ++index)
   {
     const auto& result = results[index];
-    os << "\n  [" << index << "]" << " links=[" << result.link_ids[0].name() << ", " << result.link_ids[1].name() << "]"
+    os << "\n  [" << index << "]" << " links=[" << result.link_ids[0] << ", " << result.link_ids[1] << "]"
        << " distance=" << result.distance << " normal=(" << result.normal.transpose() << ")" << " nearest_points[0]=("
        << result.nearest_points[0].transpose() << ")" << " nearest_points[1]=(" << result.nearest_points[1].transpose()
        << ")" << " single_contact_point=" << result.single_contact_point;

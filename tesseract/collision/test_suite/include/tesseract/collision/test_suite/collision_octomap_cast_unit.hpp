@@ -25,7 +25,7 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
 {
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
-  os << "Contact result:" << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
+  os << "Contact result:" << "\n  link_names: [" << cr.link_ids[0] << ", " << cr.link_ids[1] << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
      << cr.normal[2] << ")" << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1]
      << ", " << cr.nearest_points[0][2] << ")" << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", "
@@ -77,8 +77,8 @@ inline void checkOctomapCastResult(const ContactResult& cr,
 {
   // Determine which slot holds the kinematic shape and which holds the static octree.
   EXPECT_TRUE(cr.link_ids[0].name() == kin_link || cr.link_ids[1].name() == kin_link)
-      << "Expected kinematic link '" << kin_link << "' in contact result, " << "got [" << cr.link_ids[0].name() << ", "
-      << cr.link_ids[1].name() << "]";
+      << "Expected kinematic link '" << kin_link << "' in contact result, " << "got [" << cr.link_ids[0] << ", "
+      << cr.link_ids[1] << "]";
   const std::size_t ki = (cr.link_ids[0].name() == kin_link) ? 0 : 1;
   const std::size_t si = 1 - ki;
 

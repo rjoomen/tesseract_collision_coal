@@ -42,7 +42,7 @@ inline std::string formatCR(const std::string& label, const ContactResult& cr)
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
   os << "[" << label << "]"
-     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
+     << "\n  link_names: [" << cr.link_ids[0] << ", " << cr.link_ids[1] << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal.transpose() << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0].transpose() << ")"
      << "\n  nearest_points[1]: (" << cr.nearest_points[1].transpose() << ")"
