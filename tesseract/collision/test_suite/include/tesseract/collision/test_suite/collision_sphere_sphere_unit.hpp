@@ -18,6 +18,23 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::test_suite
 {
+
+/**
+ * @brief Verify that ContactResult::link_ids are valid (non-empty name, non-zero value).
+ */
+inline void verifyLinkIdsConsistency(const ContactResultVector& results)
+{
+  for (const auto& r : results)
+  {
+    for (std::size_t i = 0; i < 2; ++i)
+    {
+      EXPECT_FALSE(r.link_ids[i].name().empty()) << "link_ids[" << i << "] has empty name";
+      EXPECT_NE(r.link_ids[i], tesseract::common::INVALID_LINK_ID)
+          << "link_ids[" << i << "] is INVALID (name=" << r.link_ids[i] << ")";
+    }
+  }
+}
+
 namespace detail
 {
 inline void printContactResults(const std::string& label, const ContactResultVector& results)
@@ -188,6 +205,7 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
+  verifyLinkIdsConsistency(result_vector);
   EXPECT_NEAR(result_vector[0].distance, -0.30, 0.0001);
 
   std::vector<int> idx = { 0, 1, 1 };
@@ -307,6 +325,7 @@ inline void runTestPrimitiveDistanceDisabled(DiscreteContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
+  verifyLinkIdsConsistency(result_vector);
   EXPECT_NEAR(result_vector[0].distance, -0.30, 0.0001);
 
   std::vector<int> idx = { 0, 1, 1 };

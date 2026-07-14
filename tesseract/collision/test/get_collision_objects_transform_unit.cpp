@@ -1,6 +1,6 @@
 /**
  * @file get_collision_objects_transform_unit.cpp
- * @brief Verifies getCollisionObjectsTransform(LinkId) round-trips the setter for the Coal backends.
+ * @brief Verifies getCollisionObjectsTransform(LinkId) round-trips the setter for every backend.
  *
  * @copyright Copyright (c) 2026, Southwest Research Institute
  *
@@ -18,11 +18,46 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/test_suite/get_collision_objects_transform_unit.hpp>
+#include <tesseract/collision/bullet/bullet_discrete_simple_manager.h>
+#include <tesseract/collision/bullet/bullet_discrete_bvh_manager.h>
+#include <tesseract/collision/bullet/bullet_cast_simple_manager.h>
+#include <tesseract/collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract/collision/fcl/fcl_discrete_managers.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
 
 using namespace tesseract::collision;
 using namespace tesseract::collision::tesseract_collision_coal;
+
+TEST(TesseractCollisionUnit, BulletDiscreteSimpleGetCollisionObjectsTransform)  // NOLINT
+{
+  BulletDiscreteSimpleManager checker;
+  test_suite::runDiscreteGetCollisionObjectsTransformUnit(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletDiscreteBVHGetCollisionObjectsTransform)  // NOLINT
+{
+  BulletDiscreteBVHManager checker;
+  test_suite::runDiscreteGetCollisionObjectsTransformUnit(checker);
+}
+
+TEST(TesseractCollisionUnit, FCLDiscreteBVHGetCollisionObjectsTransform)  // NOLINT
+{
+  FCLDiscreteBVHManager checker;
+  test_suite::runDiscreteGetCollisionObjectsTransformUnit(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastSimpleGetCollisionObjectsTransform)  // NOLINT
+{
+  BulletCastSimpleManager checker;
+  test_suite::runContinuousGetCollisionObjectsTransformUnit(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHGetCollisionObjectsTransform)  // NOLINT
+{
+  BulletCastBVHManager checker;
+  test_suite::runContinuousGetCollisionObjectsTransformUnit(checker);
+}
 
 TEST(TesseractCollisionUnit, CoalDiscreteBVHGetCollisionObjectsTransform)  // NOLINT
 {
