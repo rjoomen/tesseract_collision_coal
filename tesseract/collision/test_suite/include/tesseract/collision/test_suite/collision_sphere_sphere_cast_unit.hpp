@@ -226,7 +226,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr1.distance, -0.1, 0.0001) << "Penetration should be -0.1 (sphere separation 0.4, combined radii 0.5)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_ids[0].name() != "sphere_link")
+  if (cr1.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -376,7 +376,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.1, 0.0001) << "Penetration should be -0.1 (same sphere geometry, same X separation)";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_ids[0].name() != "sphere_link")
+  if (cr2.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -536,7 +536,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                "radius slightly)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_ids[0].name() != "sphere_link")
+  if (cr1.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -679,7 +679,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.0755, 0.001) << "Penetration for convex mesh spheres";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_ids[0].name() != "sphere_link")
+  if (cr2.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
