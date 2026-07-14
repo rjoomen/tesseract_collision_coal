@@ -275,6 +275,10 @@ struct ContactTestDataWrapper : ContactTestData
 struct CollisionCallback : coal::CollisionCallBackBase
 {
   ContactTestDataWrapper* cdata{};
+
+  /** @brief Reused across candidate pairs, so the per-pair lookups are allocation-free */
+  tesseract::common::LinkIdPair link_pair;
+
   bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
   virtual ~CollisionCallback() = default;
 };
