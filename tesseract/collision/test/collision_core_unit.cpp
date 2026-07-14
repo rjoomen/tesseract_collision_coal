@@ -1,8 +1,10 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <sstream>
 #include <vector>
 #include <string>
+#include <cereal/archives/json.hpp>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/common/contact_allowed_validator.h>
@@ -164,6 +166,27 @@ TEST(TesseractCoreUnit, ContactManagerConfigTest)  // NOLINT
     config.acm.addAllowedCollision("a", "b", "never");
     EXPECT_NO_THROW(config.validate());  // NOLINT
   }
+
+  {  // Covers cereal_serialization.h:118 and :134 — the non-empty modify_object_enabled
+     // save/load loop bodies in ContactManagerConfig.
+    tesseract::collision::ContactManagerConfig config;
+    config.modify_object_enabled["link_a"] = true;
+    config.modify_object_enabled["link_b"] = false;
+    tesseract::common::testSerialization<tesseract::collision::ContactManagerConfig>(config, "ContactManagerConfig");
+  }
+}
+
+TEST(TesseractCoreUnit, ContactManagerConfigYamlDecodeNonMapModifyObjectEnabledUnit)  // NOLINT
+{
+  // Covers collision/core/yaml_extensions.h:283 — the `!n.IsMap()` negative branch in the
+  // ContactManagerConfig decoder (modify_object_enabled is present but not a map).
+  const std::string yaml_string = R"(
+    default_margin: 0.1
+    modify_object_enabled: [1, 2, 3]
+  )";
+  YAML::Node n = YAML::Load(yaml_string);
+  tesseract::collision::ContactManagerConfig cm;
+  EXPECT_FALSE(YAML::convert<tesseract::collision::ContactManagerConfig>::decode(n, cm));
 }
 
 TEST(TesseractCoreUnit, ContactManagerConfigYamlUnit)  // NOLINT
@@ -311,6 +334,17 @@ TEST(TesseractCoreUnit, getCollisionObjectPairsUnit)  // NOLINT
   EXPECT_TRUE(tesseract::common::isIdentical<tesseract::common::LinkIdPair>(pairs, check_pairs, false));
 }
 
+TEST(TesseractCoreUnit, isContactAllowedUnit)  // NOLINT
+{
+  auto validator = std::make_shared<TestContactAllowedValidator>();
+
+  EXPECT_TRUE(tesseract::collision::isContactAllowed("base_link", "base_link", validator, false));
+  EXPECT_FALSE(tesseract::collision::isContactAllowed("base_link", "link_2", validator, false));
+  EXPECT_TRUE(tesseract::collision::isContactAllowed("base_link", "link_1", validator, true));
+  // Covers collision/core/src/common.cpp:102 — non-allowed pair + verbose logging branch.
+  EXPECT_FALSE(tesseract::collision::isContactAllowed("base_link", "link_2", validator, true));
+}
+
 TEST(TesseractCoreUnit, scaleVerticesUnit)  // NOLINT
 {
   tesseract::common::VectorVector3d base_vertices{};
@@ -370,6 +404,8 @@ TEST(TesseractCoreUnit, ContactResultsUnit)  // NOLINT
   EXPECT_TRUE(results.transform[1].isApprox(Eigen::Isometry3d::Identity()));
   EXPECT_TRUE(results.link_ids[0].name().empty());
   EXPECT_TRUE(results.link_ids[1].name().empty());
+  EXPECT_FALSE(results.link_ids[0].isValid());
+  EXPECT_FALSE(results.link_ids[1].isValid());
   EXPECT_EQ(results.shape_id[0], -1);
   EXPECT_EQ(results.shape_id[1], -1);
   EXPECT_EQ(results.subshape_id[0], -1);
@@ -980,6 +1016,156 @@ TEST(TesseractCoreUnit, ContactResultMapUnit)  // NOLINT
     EXPECT_TRUE(it != result_map.end());
     EXPECT_EQ(it->second.size(), 1);
   }
+}
+
+TEST(TesseractCoreUnit, ContactResultMapCerealUsesMasterWireFormat)  // NOLINT
+{
+  // Regression: master persists ContactResultMap as a string-keyed std::map under NVP "container".
+  // The current branch's hash-based LinkIdPair cereal would have leaked NameIdValue digits onto
+  // the wire (not stable across builds); this test pins the master-compatible format and the
+  // round-trip recovery of the LinkIdPair key from the per-result link names.
+  using namespace tesseract::collision;
+  using namespace tesseract::common;
+
+  ContactResultMap original;
+  ContactResult result;
+  result.link_ids = { LinkId("link_a"), LinkId("link_b") };
+  result.distance = 0.05;
+  LinkIdPair key(result.link_ids[0], result.link_ids[1]);
+  original.addContactResult(key, result);
+
+  std::stringstream ss;
+  {
+    cereal::JSONOutputArchive ar(ss);
+    ar(cereal::make_nvp("contact_result_map", original));
+  }
+  const std::string archive_text = ss.str();
+  // Master wire format: NVP key "container" + string names, no raw hash digits.
+  EXPECT_NE(archive_text.find("container"), std::string::npos) << archive_text;
+  EXPECT_NE(archive_text.find("link_a"), std::string::npos) << archive_text;
+  EXPECT_NE(archive_text.find("link_b"), std::string::npos) << archive_text;
+  EXPECT_EQ(archive_text.find("first_id"), std::string::npos)
+      << "Old hash-based LinkIdPair format leaked into wire output: " << archive_text;
+  EXPECT_EQ(archive_text.find("second_id"), std::string::npos)
+      << "Old hash-based LinkIdPair format leaked into wire output: " << archive_text;
+  EXPECT_EQ(archive_text.find("entries"), std::string::npos)
+      << "Pre-master vector-of-entries format leaked into wire output: " << archive_text;
+
+  ContactResultMap loaded;
+  {
+    cereal::JSONInputArchive ar(ss);
+    ar(cereal::make_nvp("contact_result_map", loaded));
+  }
+  ASSERT_EQ(loaded.size(), 1U);
+  const auto& [stored_key, stored_results] = *loaded.getContainer().begin();
+  EXPECT_EQ(stored_key, key);
+  ASSERT_EQ(stored_results.size(), 1U);
+  EXPECT_EQ(stored_results[0].link_ids[0].name(), "link_a");
+  EXPECT_EQ(stored_results[0].link_ids[1].name(), "link_b");
+  EXPECT_DOUBLE_EQ(stored_results[0].distance, 0.05);
+}
+
+TEST(TesseractCoreUnit, ContactResultMapCerealLoadsMasterFormatLiteral)  // NOLINT
+{
+  // Cross-archive load test: a hand-crafted JSON literal that mimics what master's
+  // ContactResultMap save produces (NVP "container", string-pair keys, ContactResult value).
+  // This proves the wire format is byte-readable across implementations, not merely a
+  // local round-trip fixed-point on this branch. A partner test
+  // (ContactResultMapCerealUsesMasterWireFormat, above) pins the structural shape on save.
+  using namespace tesseract::collision;
+  using namespace tesseract::common;
+
+  // Names and distance deliberately differ from the structural test so a copy-paste
+  // round-trip cannot mask a load regression.
+  const std::string master_format = R"JSON({
+    "contact_result_map": {
+        "container": [
+            {
+                "key": {
+                    "first": "master_link_x",
+                    "second": "master_link_y"
+                },
+                "value": [
+                    {
+                        "distance": 0.125,
+                        "type_id": { "value0": 0, "value1": 0 },
+                        "link_names": { "value0": "master_link_x", "value1": "master_link_y" },
+                        "shape_id": { "value0": -1, "value1": -1 },
+                        "subshape_id": { "value0": -1, "value1": -1 },
+                        "nearest_points": {
+                            "value0": { "cereal_class_version": 0, "rows": 3, "data": [0.0, 0.0, 0.0] },
+                            "value1": { "rows": 3, "data": [0.0, 0.0, 0.0] }
+                        },
+                        "nearest_points_local": {
+                            "value0": { "rows": 3, "data": [0.0, 0.0, 0.0] },
+                            "value1": { "rows": 3, "data": [0.0, 0.0, 0.0] }
+                        },
+                        "transform": {
+                            "value0": {
+                                "cereal_class_version": 0,
+                                "xyz": [0.0, 0.0, 0.0],
+                                "xyzw": [0.0, 0.0, 0.0, 1.0]
+                            },
+                            "value1": {
+                                "xyz": [0.0, 0.0, 0.0],
+                                "xyzw": [0.0, 0.0, 0.0, 1.0]
+                            }
+                        },
+                        "normal": { "rows": 3, "data": [0.0, 0.0, 0.0] },
+                        "cc_time": { "value0": -1.0, "value1": -1.0 },
+                        "cc_type": { "value0": 0, "value1": 0 },
+                        "cc_transform": {
+                            "value0": {
+                                "xyz": [0.0, 0.0, 0.0],
+                                "xyzw": [0.0, 0.0, 0.0, 1.0]
+                            },
+                            "value1": {
+                                "xyz": [0.0, 0.0, 0.0],
+                                "xyzw": [0.0, 0.0, 0.0, 1.0]
+                            }
+                        },
+                        "single_contact_point": false
+                    }
+                ]
+            }
+        ]
+    }
+  })JSON";
+
+  ContactResultMap loaded;
+  {
+    std::stringstream ss(master_format);
+    cereal::JSONInputArchive ar(ss);
+    ar(cereal::make_nvp("contact_result_map", loaded));
+  }
+
+  ASSERT_EQ(loaded.size(), 1U);
+  const auto& [stored_key, stored_results] = *loaded.getContainer().begin();
+  // LinkIdPair key reconstructed from the string names in the master-format JSON.
+  EXPECT_EQ(stored_key, LinkIdPair(LinkId("master_link_x"), LinkId("master_link_y")));
+  ASSERT_EQ(stored_results.size(), 1U);
+  EXPECT_EQ(stored_results[0].link_ids[0].name(), "master_link_x");
+  EXPECT_EQ(stored_results[0].link_ids[1].name(), "master_link_y");
+  EXPECT_DOUBLE_EQ(stored_results[0].distance, 0.125);
+}
+
+TEST(TesseractCoreUnit, ContactResultMapCerealSaveRejectsInvalidLinkIds)  // NOLINT
+{
+  // Defensive guard: the master-compatible save path derives the on-disk key from the stored
+  // ContactResult's link_ids names. A default-constructed ContactResult would silently emit
+  // ("","") on the wire and lose the LinkIdPair identity. Confirm save throws instead.
+  using namespace tesseract::collision;
+  using namespace tesseract::common;
+
+  ContactResultMap result_map;
+  // Use addContactResult with a default ContactResult — link_ids are INVALID_LINK_ID, so
+  // names are empty.
+  result_map.addContactResult({ LinkId("real_a"), LinkId("real_b") }, ContactResult{});
+
+  std::stringstream ss;
+  cereal::JSONOutputArchive ar(ss);
+  EXPECT_THROW(ar(cereal::make_nvp("contact_result_map", result_map)),  // NOLINT
+               std::runtime_error);
 }
 
 TEST(TesseractCoreUnit, ContactRequestUnit)  // NOLINT
