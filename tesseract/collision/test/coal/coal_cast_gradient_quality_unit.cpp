@@ -57,7 +57,7 @@ protected:
     ASSERT_EQ(checker_.getCollisionObjects().size(), 2);
 
     // Only the box is active
-    checker_.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "box_link" });
+    checker_.setActiveCollisionObjects({ "box_link" });
     checker_.setDefaultCollisionMargin(0.0);
   }
 

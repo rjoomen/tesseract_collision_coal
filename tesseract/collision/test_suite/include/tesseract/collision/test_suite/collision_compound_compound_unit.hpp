@@ -12,6 +12,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
 
+#include <unordered_set>
+
 namespace tesseract::collision::test_suite
 {
 namespace detail
@@ -78,12 +80,9 @@ inline void runTestCompound(DiscreteContactManager& checker)
   //////////////////////////////////////
   // Test when object is in collision
   //////////////////////////////////////
-  std::vector<tesseract::common::LinkId> active_link_ids{ "octomap1_link", "octomap2_link" };
-  checker.setActiveCollisionObjects(active_link_ids);
-  const auto& check_active_link_ids = checker.getActiveCollisionObjectIds();
-  EXPECT_EQ(check_active_link_ids.size(), active_link_ids.size());
-  EXPECT_EQ(check_active_link_ids.count("octomap1_link"), 1);
-  EXPECT_EQ(check_active_link_ids.count("octomap2_link"), 1);
+  checker.setActiveCollisionObjects({ "octomap1_link", "octomap2_link" });
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+            (std::unordered_set<tesseract::common::LinkId>{ "octomap1_link", "octomap2_link" }));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -115,11 +114,8 @@ inline void runTestCompound(ContinuousContactManager& checker)
   //////////////////////////////////////
   // Test when object is in collision
   //////////////////////////////////////
-  std::vector<tesseract::common::LinkId> active_link_ids{ "octomap1_link" };
-  checker.setActiveCollisionObjects(active_link_ids);
-  const auto& check_active_link_ids = checker.getActiveCollisionObjectIds();
-  EXPECT_EQ(check_active_link_ids.size(), active_link_ids.size());
-  EXPECT_EQ(check_active_link_ids.count("octomap1_link"), 1);
+  checker.setActiveCollisionObjects({ "octomap1_link" });
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(), (std::unordered_set<tesseract::common::LinkId>{ "octomap1_link" }));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
