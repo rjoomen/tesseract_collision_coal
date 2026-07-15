@@ -9,6 +9,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/discrete_contact_manager.h>
 #include <tesseract/geometry/geometries.h>
 
+#include <unordered_set>
+
 namespace tesseract::collision::test_suite
 {
 namespace detail
@@ -127,12 +129,9 @@ runTest(DiscreteContactManager& checker, double dist_tol = 0.001, double nearest
   //////////////////////////////////////
   // Test when object is in collision
   //////////////////////////////////////
-  std::vector<tesseract::common::LinkId> active_link_ids{ "sphere_link", "sphere1_link" };
-  checker.setActiveCollisionObjects(active_link_ids);
-  const auto& check_active_link_ids = checker.getActiveCollisionObjectIds();
-  EXPECT_EQ(check_active_link_ids.size(), active_link_ids.size());
-  EXPECT_EQ(check_active_link_ids.count("sphere_link"), 1);
-  EXPECT_EQ(check_active_link_ids.count("sphere1_link"), 1);
+  checker.setActiveCollisionObjects({ "sphere_link", "sphere1_link" });
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+            (std::unordered_set<tesseract::common::LinkId>{ "sphere_link", "sphere1_link" }));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
