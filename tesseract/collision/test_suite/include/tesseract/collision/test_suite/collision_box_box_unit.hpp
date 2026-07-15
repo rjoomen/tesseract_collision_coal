@@ -1,6 +1,7 @@
 #ifndef TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 #define TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 
+#include <unordered_set>
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
@@ -90,9 +91,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   /////////////////////////////////////////////
   // Set active links before add/remove test
   /////////////////////////////////////////////
-  std::vector<std::string> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
+  std::vector<tesseract::common::LinkId> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -110,17 +111,16 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto active_after_remove = checker.getActiveCollisionObjectNames();
+    const auto& active_after_remove = checker.getActiveCollisionObjectIds();
     EXPECT_EQ(active_after_remove.size(), 3);
-    EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
-              active_after_remove.end());
+    EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
 
   /////////////////////////////////////////////
@@ -156,10 +156,10 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   //////////////////////////////////////
   // Test when object is inside another
   //////////////////////////////////////
-  std::vector<std::string> active_links{ "box_link", "second_box_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "box_link", "second_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -217,7 +217,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     result_vector.clear();
 
     // Use different method for setting transforms
-    std::vector<std::string> names = { "box_link" };
+    std::vector<tesseract::common::LinkId> names = { "box_link" };
     tesseract::common::VectorIsometry3d transforms = { location["box_link"] };
     checker.setCollisionObjectsTransform(names, transforms);
     checker.contactTest(result, test_type);
@@ -240,7 +240,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     result_vector.clear();
 
     // Use different method for setting transforms
-    std::vector<std::string> names = { "box_link" };
+    std::vector<tesseract::common::LinkId> names = { "box_link" };
     tesseract::common::VectorIsometry3d transforms = { location["box_link"] };
     checker.setCollisionObjectsTransform(names, transforms);
     checker.contactTest(result, test_type);

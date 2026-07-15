@@ -5,6 +5,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <string>
+#include <unordered_set>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/continuous_contact_manager.h>
@@ -64,9 +65,9 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   /////////////////////////////////////////////
   // Set active links before add/remove test
   /////////////////////////////////////////////
-  std::vector<std::string> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
+  std::vector<tesseract::common::LinkId> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -85,17 +86,16 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto active_after_remove = checker.getActiveCollisionObjectNames();
+    const auto& active_after_remove = checker.getActiveCollisionObjectIds();
     EXPECT_EQ(active_after_remove.size(), 3);
-    EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
-              active_after_remove.end());
+    EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
 
   /////////////////////////////////////////////
@@ -147,12 +147,12 @@ inline void runTest(ContinuousContactManager& checker)
   //////////////////////////////////////
   // Test when object is inside another
   //////////////////////////////////////
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_box_link", "static_box_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "moving_box_link", "static_box_link" });
 
-  std::vector<std::string> active_links{ "moving_box_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -162,7 +162,7 @@ inline void runTest(ContinuousContactManager& checker)
   // Set the collision object transforms
   // static_box_link: unit box at origin (identity transform)
   // moving_box_link: 0.25^3 box sweeping from (-1.9, 0, 0) to (1.9, 3.8, 0)
-  std::vector<std::string> names = { "static_box_link" };
+  std::vector<tesseract::common::LinkId> names = { "static_box_link" };
   tesseract::common::VectorIsometry3d transforms = { Eigen::Isometry3d::Identity() };
   checker.setCollisionObjectsTransform(names, transforms);
 
@@ -176,7 +176,8 @@ inline void runTest(ContinuousContactManager& checker)
   end_pos.translation()(1) = 3.8;
   start_poses.push_back(start_pos);
   end_poses.push_back(end_pos);
-  checker.setCollisionObjectsTransform({ "moving_box_link" }, start_poses, end_poses);
+  checker.setCollisionObjectsTransform(
+      std::vector<tesseract::common::LinkId>{ "moving_box_link" }, start_poses, end_poses);
 
   std::vector<ContactTestType> test_types = { ContactTestType::ALL, ContactTestType::CLOSEST, ContactTestType::FIRST };
   std::vector<std::string> test_type_names = { "ALL", "CLOSEST", "FIRST" };

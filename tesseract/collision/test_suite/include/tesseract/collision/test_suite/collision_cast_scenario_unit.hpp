@@ -317,7 +317,7 @@ inline void runTestScenarioA_RotationalSweep(ContinuousContactManager& checker)
 {
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -345,7 +345,7 @@ inline void runTestScenarioB_MultiShapeSweep(ContinuousContactManager& checker)
   addOctree(checker, "octomap_link");
   addMultiShapeLink(
       checker, "arm_link", Eigen::Vector3d(0.1, 0.1, 0.1), Eigen::Vector3d(0.5, 0, 0), Eigen::Vector3d(-0.5, 0, 0));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -373,7 +373,7 @@ inline void runTestScenarioC_LargeMargin(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
   checker.setDefaultCollisionMargin(margin);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -409,7 +409,7 @@ inline ArticulatedArmPoses setupArticulatedArm(ContinuousContactManager& checker
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "parent_link", Eigen::Vector3d(0.15, 0.15, 0.15));
   addBoxLink(checker, "child_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "parent_link", "child_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "parent_link", "child_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -528,7 +528,7 @@ inline void runTestScenarioE_SubdivisionLoop(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.15, 0.15, 0.15));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.25);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -588,7 +588,7 @@ inline void runTestScenarioE_Comparison(ContinuousContactManager& checker_a,
   auto setup = [&](ContinuousContactManager& checker) {
     addOctree(checker, "octomap_link");
     addBoxLink(checker, "kin_link", Eigen::Vector3d(0.15, 0.15, 0.15));
-    checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+    checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
     checker.setDefaultCollisionMargin(0.25);
     checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
   };
@@ -644,7 +644,7 @@ inline void runTestScenarioF_NearMiss(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
   checker.setDefaultCollisionMargin(margin);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -674,7 +674,7 @@ inline void runTestScenarioG_RepeatedStability(ContinuousContactManager& checker
 {
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
