@@ -8,6 +8,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <unordered_set>
 #include <tesseract/collision/bullet/convex_hull_utils.h>
 #include <tesseract/collision/discrete_contact_manager.h>
 #include <tesseract/collision/common.h>
@@ -44,7 +45,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
   double delta = 0.55;
 
   std::size_t t = 10;
-  std::vector<std::string> link_names;
+  std::vector<tesseract::common::LinkId> link_names;
   tesseract::common::LinkIdTransformMap location;
   for (std::size_t x = 0; x < t; ++x)
   {
@@ -72,8 +73,8 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
 
   // Check if they are in collision
   checker.setActiveCollisionObjects(link_names);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(link_names, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+            std::unordered_set<tesseract::common::LinkId>(link_names.begin(), link_names.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -111,7 +112,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
       {
         Eigen::Isometry3d pose = const_location.at(id);
         pose.translation()[1] += 0.1;
-        std::vector<std::string> names = { name };
+        std::vector<tesseract::common::LinkId> names = { name };
         tesseract::common::VectorIsometry3d transforms = { pose };
         manager->setCollisionObjectsTransform(names, transforms);
       }
@@ -125,7 +126,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
       {
         Eigen::Isometry3d pose = const_location.at(id);
         pose.translation()[0] -= 0.1;
-        std::vector<std::string> names = { name };
+        std::vector<tesseract::common::LinkId> names = { name };
         tesseract::common::VectorIsometry3d transforms = { pose };
         manager->setCollisionObjectsTransform(names, transforms);
       }

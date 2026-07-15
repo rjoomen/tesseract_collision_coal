@@ -68,11 +68,10 @@ public:
   CoalDiscreteBVHManager(CoalDiscreteBVHManager&&) = delete;
   CoalDiscreteBVHManager& operator=(CoalDiscreteBVHManager&&) = delete;
 
-  // Bring base class string overloads into scope (prevents name hiding by ID overloads)
+  // Bring base class overloads into scope (prevents name hiding by the derived overrides)
   using DiscreteContactManager::addCollisionObject;
   using DiscreteContactManager::disableCollisionObject;
   using DiscreteContactManager::enableCollisionObject;
-  using DiscreteContactManager::getActiveCollisionObjectNames;
   using DiscreteContactManager::getCollisionObjectGeometries;
   using DiscreteContactManager::getCollisionObjectGeometriesTransforms;
   using DiscreteContactManager::hasCollisionObject;

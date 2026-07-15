@@ -282,7 +282,7 @@ inline void addOctomapSphereCollisionObjects(ContinuousContactManager& checker)
 inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, ContactTestType test_type)
 {
   // Only the cylinder is active; the octree is static.
-  std::vector<std::string> active_links{ "cylinder_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "cylinder_link" };
   checker.setActiveCollisionObjects(active_links);
 
   checker.setDefaultCollisionMargin(0.1);
@@ -333,7 +333,7 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
 inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactTestType test_type)
 {
   // Only the sphere is active; the octree is static.
-  std::vector<std::string> active_links{ "sphere_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "sphere_link" };
   checker.setActiveCollisionObjects(active_links);
 
   checker.setDefaultCollisionMargin(0.1);
@@ -432,7 +432,7 @@ inline void addOctomapConvexHullCollisionObjects(ContinuousContactManager& check
 inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, ContactTestType test_type)
 {
   // Only the convex hull is active; the octree is static.
-  std::vector<std::string> active_links{ "convex_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "convex_link" };
   checker.setActiveCollisionObjects(active_links);
 
   checker.setDefaultCollisionMargin(0.1);
