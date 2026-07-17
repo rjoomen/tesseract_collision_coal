@@ -101,12 +101,12 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
-  /// @brief Accessors for the mutable support-function vertex hints and
-  /// ShapeSupportData. Returned by reference so callers doing their own
-  /// support queries on the underlying shape at the same cast pose can share
-  /// warm-start state with this class's GJK queries — the last extreme vertex
-  /// from GJK and its associated direction are high-quality starting points
-  /// for support queries along related directions (e.g. the contact normal).
+  /// @brief Accessors for the GJK sweep's mutable vertex hints and
+  /// ShapeSupportData. After GJK converges, the hint vertex and its last_dir are
+  /// high-quality starting points for support queries along related directions
+  /// (e.g. the contact normal), so callers may read them to seed their own
+  /// queries. Callers should climb on their own scratch rather than mutating
+  /// these, so they do not perturb the sweep's warm-start chain.
   int& getHint0() const { return hint0_; }
   int& getHint1() const { return hint1_; }
   coal::details::ShapeSupportData& getSupportData0() const { return support_data0_; }
