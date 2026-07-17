@@ -363,9 +363,40 @@ void getAverageSupportFromConvex(const ConvexT* convex,
                                  double& outsupport,
                                  coal::Vec3s& outpt,
                                  int& hint,
-                                 coal::details::ShapeSupportData& support_data)
+                                 coal::details::ShapeSupportData& support_data,
+                                 bool use_flat)
 {
   using IndexType = typename ConvexT::IndexType;
+
+  if (use_flat)
+  {
+    // Direction-independent O(V) scan: average all vertices whose support is
+    // tied (within COAL_EPSILON) for the maximum along localNormal. Used when
+    // penetration is not requested: GJK boolean/distance early-outs without EPA,
+    // leaving the shared warm-start seed poorly aimed, so the hill-climb below
+    // would be a net loss.
+    coal::Vec3s ptSum = coal::Vec3s::Zero();
+    double ptCount = 0.0;
+    double maxSupport = std::numeric_limits<double>::lowest();
+    for (const auto& pt : *convex->points)
+    {
+      const double sup = pt.dot(localNormal);
+      if (sup > maxSupport + COAL_EPSILON)
+      {
+        ptCount = 1.0;
+        ptSum = pt;
+        maxSupport = sup;
+      }
+      else if (sup >= maxSupport - COAL_EPSILON)
+      {
+        ptCount += 1.0;
+        ptSum += pt;
+      }
+    }
+    outsupport = maxSupport;
+    outpt = ptSum / ptCount;
+    return;
+  }
 
   coal::Vec3s support;
   coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
@@ -444,7 +475,8 @@ void GetAverageSupport(const coal::ShapeBase* shape,
                        double& outsupport,
                        coal::Vec3s& outpt,
                        int& hint,
-                       coal::details::ShapeSupportData& support_data)
+                       coal::details::ShapeSupportData& support_data,
+                       bool use_flat)
 {
   switch (shape->getNodeType())
   {
@@ -453,7 +485,7 @@ void GetAverageSupport(const coal::ShapeBase* shape,
       const auto* convex = static_cast<const coal::ConvexBase32*>(shape);
       if (convex->points && !convex->points->empty())
       {
-        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data);
+        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data, use_flat);
         return;
       }
       break;
@@ -463,7 +495,7 @@ void GetAverageSupport(const coal::ShapeBase* shape,
       const auto* convex = static_cast<const coal::ConvexBase16*>(shape);
       if (convex->points && !convex->points->empty())
       {
-        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data);
+        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data, use_flat);
         return;
       }
       break;
@@ -503,7 +535,8 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,
                                        const coal::CollisionObject* o2,
-                                       const std::array<Eigen::Isometry3d, 2>& tf_inv)
+                                       const std::array<Eigen::Isometry3d, 2>& tf_inv,
+                                       bool use_flat)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
   for (std::size_t i = 0; i < 2; ++i)
@@ -546,20 +579,37 @@ void populateContinuousCollisionFields(ContactResult& contact,
     coal::Vec3s normal_local1 = tf_world1.getRotation().transpose() * normal_world;
 
     // Get averaged support points on the underlying shape at both local normals.
-    // Reuse CastHullShape's GJK warm-start state (hints + ShapeSupportData) in
-    // the same per-pose local frames: after GJK converges, last_dir already
-    // matches the contact normal, so coal keeps our hints instead of overriding
-    // via its internal warm-start pool.
+    // The averaging climb runs on thread_local scratch (its visited buffer stays
+    // allocated across calls, like traversal_stack) rather than the sweep's own
+    // hint/ShapeSupportData, so it never perturbs the sweep's warm-start chain.
+    // When use_flat is false (penetration requested), EPA has converged, so the
+    // sweep's hint/last_dir already match the contact normal — seed the scratch
+    // from them for a high-quality start. When use_flat is true the flat scan
+    // ignores the scratch entirely (see getAverageSupportFromConvex), so the
+    // stale seed is harmless; the warm branch re-seeds last_dir and re-inits
+    // visited on every call, so interleaved flat/warm queries never corrupt it.
     const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
+    thread_local coal::details::ShapeSupportData avg_data;
+
     coal::Vec3s pt_local0;
     double sup_local0 = 0;
-    GetAverageSupport(
-        underlying, normal_local0, sup_local0, pt_local0, cast_shape->getHint0(), cast_shape->getSupportData0());
+    int hint0 = 0;
+    if (!use_flat)
+    {
+      hint0 = cast_shape->getHint0();
+      avg_data.last_dir = cast_shape->getSupportData0().last_dir;
+    }
+    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0, hint0, avg_data, use_flat);
 
     coal::Vec3s pt_local1;
     double sup_local1 = 0;
-    GetAverageSupport(
-        underlying, normal_local1, sup_local1, pt_local1, cast_shape->getHint1(), cast_shape->getSupportData1());
+    int hint1 = 0;
+    if (!use_flat)
+    {
+      hint1 = cast_shape->getHint1();
+      avg_data.last_dir = cast_shape->getSupportData1().last_dir;
+    }
+    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1, hint1, avg_data, use_flat);
 
     // Compare world-frame supports at the LINK origin as reference center,
     // matching Bullet's compound-child treatment:
@@ -781,7 +831,12 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.normal = pair_swapped ? coal::Vec3s(-coal_contact.normal) : coal_contact.normal;
 
     if (entry.is_cast)
-      populateContinuousCollisionFields(contact, o1, o2, tf_inv);
+    {
+      // With penetration disabled, GJK early-outs without EPA, so its shared
+      // warm-start seed is poorly aimed for support averaging; use the flat scan.
+      const bool use_flat = !cdata->req.calculate_penetration;
+      populateContinuousCollisionFields(contact, o1, o2, tf_inv, use_flat);
+    }
 
     if (!found)
     {
