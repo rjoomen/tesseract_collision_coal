@@ -97,10 +97,12 @@ inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
 /// `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
 
-/** @brief Compute a tight AABB for any ShapeBase subclass by dispatching to the
- *  type-specific computeBV specialization based on getNodeType().
- *  Falls back to computeBV<AABB, ShapeBase> for unrecognized types (GEOM_CUSTOM etc.).
- *  @pre s.computeLocalAABB() must have been called (fallback reads aabb_local). */
+/** @brief Compute an AABB for a ShapeBase at transform tf, dispatching on getNodeType().
+ *  Primitive shapes (Box, Sphere, Capsule, ...) use their exact analytic computeBV
+ *  specialization. Convex hulls use the conservative O(1) computeBV<AABB, ShapeBase>
+ *  bound rather than the exact O(num_points) per-vertex fit, which is too costly for
+ *  the tightness it buys on the per-check cast path (computeLocalAABB).
+ *  @pre s.computeLocalAABB() must have been called (convex/fallback read aabb_local). */
 void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
 
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
