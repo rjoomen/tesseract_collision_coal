@@ -61,9 +61,7 @@ void CastHullShape::computeLocalAABB()
   // Pose 0: underlying shape's local AABB (tight, precomputed).
   aabb_local = shape_->aabb_local;
 
-  // Pose 1: tight AABB of the underlying shape at the cast transform.
-  // computeShapeAABB dispatches to the type-specific computeBV specialization
-  // (exact for Box, Sphere, ConvexBase, etc.) based on the shape's node type.
+  // Pose 1: AABB of the underlying shape at the cast transform.
   coal::AABB pose1_aabb;
   computeShapeAABB(*shape_, castTransform_, pose1_aabb);
 

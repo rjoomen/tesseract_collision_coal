@@ -90,12 +90,6 @@ void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coa
     case coal::GEOM_CYLINDER:
       coal::computeBV<coal::AABB>(static_cast<const coal::Cylinder&>(s), tf, bv);
       return;
-    case coal::GEOM_CONVEX32:
-      coal::computeBV<coal::AABB>(static_cast<const coal::ConvexBase32&>(s), tf, bv);
-      return;
-    case coal::GEOM_CONVEX16:
-      coal::computeBV<coal::AABB>(static_cast<const coal::ConvexBase16&>(s), tf, bv);
-      return;
     case coal::GEOM_TRIANGLE:
       coal::computeBV<coal::AABB>(static_cast<const coal::TriangleP&>(s), tf, bv);
       return;
@@ -105,8 +99,13 @@ void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coa
     case coal::GEOM_PLANE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Plane&>(s), tf, bv);
       return;
+    case coal::GEOM_CONVEX32:
+    case coal::GEOM_CONVEX16:
     default:
-      // GEOM_CUSTOM and any future types: conservative |R|*half-extents fallback.
+      // Convex hulls, GEOM_CUSTOM, and future types: conservative O(1)
+      // |R|*half-extents from the precomputed local AABB. The exact convex fit
+      // (computeAABBConvex) is O(num_points) and too costly on the per-check
+      // cast path for the broadphase tightness it buys.
       coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
       return;
   }
