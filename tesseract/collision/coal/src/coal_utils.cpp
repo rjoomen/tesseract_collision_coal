@@ -113,6 +113,13 @@ void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coa
 
 namespace
 {
+// Apply the inverse of a rigid transform to a point without materializing the
+// inverse: tf⁻¹ · p == Rᵀ (p − t).
+inline Eigen::Vector3d applyInverse(const Eigen::Isometry3d& tf, const Eigen::Vector3d& p)
+{
+  return tf.linear().transpose() * (p - tf.translation());
+}
+
 CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Plane::ConstPtr& geom)
 {
   return std::make_shared<coal::Plane>(geom->getA(), geom->getB(), geom->getC(), geom->getD());
@@ -534,10 +541,12 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,
                                        const coal::CollisionObject* o2,
-                                       const std::array<Eigen::Isometry3d, 2>& tf_inv,
+                                       const Eigen::Isometry3d& tf1,
+                                       const Eigen::Isometry3d& tf2,
                                        bool use_flat)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
+  const std::array<Eigen::Isometry3d, 2> link_tf = { tf1, tf2 };
   for (std::size_t i = 0; i < 2; ++i)
   {
     const auto* cow = static_cast<const CollisionObjectWrapper*>(objects[i]->getUserData());
@@ -635,13 +644,11 @@ void populateContinuousCollisionFields(ContactResult& contact,
     const double link_sup0 = sup_local0 + nw.dot(contact.transform[i].translation());
     const double link_sup1 = sup_local1 + nw.dot(contact.cc_transform[i].translation());
 
-    const Eigen::Isometry3d& link_tf_inv = tf_inv[i];
-
     if (link_sup0 - link_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
       contact.cc_time[i] = 0;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(pt_local0));
+      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf0 * Eigen::Vector3d(pt_local0));
     }
     else if (link_sup1 - link_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
@@ -653,7 +660,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
       // uses the t=1 shape transform for the CCType_Time1 branch, so that
       // transform[ki] * nearest_points_local[ki] == nearest_points[ki]
       // (the actual world-frame contact point).
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf1 * Eigen::Vector3d(pt_local1));
+      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf1 * Eigen::Vector3d(pt_local1));
     }
     else
     {
@@ -678,7 +685,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
       // transformed to world via shape_tf0, then to link-local coordinates.
       // Matches Bullet's calculateContinuousData: (shape_ptLocal0 + shape_ptLocal1) / 2.0
       const coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(avg_pt_local));
+      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf0 * Eigen::Vector3d(avg_pt_local));
     }
   }
 }
@@ -799,8 +806,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
 
-  const std::array<Eigen::Isometry3d, 2> tf_inv = { tf1.inverse(), tf2.inverse() };
-
   // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
   const int idx0 = pair_swapped ? 1 : 0;
   const int idx1 = pair_swapped ? 0 : 1;
@@ -820,8 +825,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
         getReportedSubshapeIndex(o2, static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2));
     contact.nearest_points[0] = coal_contact.nearest_points[idx0];
     contact.nearest_points[1] = coal_contact.nearest_points[idx1];
-    contact.nearest_points_local[0] = tf_inv[0] * contact.nearest_points[0];
-    contact.nearest_points_local[1] = tf_inv[1] * contact.nearest_points[1];
+    contact.nearest_points_local[0] = applyInverse(tf1, contact.nearest_points[0]);
+    contact.nearest_points_local[1] = applyInverse(tf2, contact.nearest_points[1]);
     contact.transform[0] = tf1;
     contact.transform[1] = tf2;
     contact.type_id[0] = cd1->getTypeID();
@@ -834,7 +839,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // With penetration disabled, GJK early-outs without EPA, so its shared
       // warm-start seed is poorly aimed for support averaging; use the flat scan.
       const bool use_flat = !cdata->req.calculate_penetration;
-      populateContinuousCollisionFields(contact, o1, o2, tf_inv, use_flat);
+      populateContinuousCollisionFields(contact, o1, o2, tf1, tf2, use_flat);
     }
 
     if (!found)

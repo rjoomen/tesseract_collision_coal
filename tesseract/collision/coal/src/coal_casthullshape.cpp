@@ -48,7 +48,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 namespace tesseract::collision::tesseract_collision_coal
 {
 CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-  : shape_(std::move(shape)), castTransform_(castTransform), castTransformInv_(castTransform.inverse())
+  : shape_(std::move(shape)), castTransform_(castTransform)
 {
   // Ensure the underlying shape's local AABB is computed.
   // Shapes from CollisionObjects already have this set, but freshly constructed
@@ -135,7 +135,6 @@ bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
 void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
-  castTransformInv_ = castTransform.inverse();
   computeLocalAABB();
 }
 
@@ -157,7 +156,8 @@ void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
   // Support at pose 1 (shape at castTransform_).
   // Rotate the query direction into the local frame of pose 1, compute support,
   // then transform the result back to the local frame of pose 0.
-  const coal::Vec3s dir_local1 = castTransformInv_.getRotation() * dir;
+  const coal::Vec3s dir_local1 =
+      castTransform_.getRotation().transpose() * dir;  // Transpose of a rotation matrix is its inverse.
   const coal::Vec3s s1_local = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
       shape_.get(), dir_local1, hint1_, support_data1_);
   const coal::Vec3s s1 = castTransform_.transform(s1_local);
