@@ -131,6 +131,13 @@ public:
   void setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& pose1,
                                     const tesseract::common::LinkIdTransformMap& pose2) override final;
 
+  void setCollisionObjectsTransform(const std::vector<tesseract::common::LinkId>& ids,
+                                    const tesseract::common::VectorIsometry3d& poses) override final;
+
+  void setCollisionObjectsTransform(const std::vector<tesseract::common::LinkId>& ids,
+                                    const tesseract::common::VectorIsometry3d& pose1,
+                                    const tesseract::common::VectorIsometry3d& pose2) override final;
+
   const std::vector<tesseract::common::LinkId>& getCollisionObjects() const override final;
 
   void setActiveCollisionObjects(const std::unordered_set<tesseract::common::LinkId>& ids) override final;

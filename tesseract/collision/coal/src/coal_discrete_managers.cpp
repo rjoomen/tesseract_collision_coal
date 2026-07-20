@@ -40,6 +40,8 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
+#include <stdexcept>
+#include <string>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
@@ -206,6 +208,24 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::commo
     auto it = link2cow_.find(id);
     if (it != link2cow_.end())
       collectTransformUpdate(it, tf);
+  }
+  flushBatchUpdate();
+}
+
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<tesseract::common::LinkId>& ids,
+                                                          const tesseract::common::VectorIsometry3d& poses)
+{
+  if (ids.size() != poses.size())
+    throw std::runtime_error("CoalDiscreteBVHManager, setCollisionObjectsTransform received " +
+                             std::to_string(ids.size()) + " ids but " + std::to_string(poses.size()) + " poses!");
+
+  static_update_.clear();
+  dynamic_update_.clear();
+  for (std::size_t i = 0; i < ids.size(); ++i)
+  {
+    auto it = link2cow_.find(ids[i]);
+    if (it != link2cow_.end())
+      collectTransformUpdate(it, poses[i]);
   }
   flushBatchUpdate();
 }
