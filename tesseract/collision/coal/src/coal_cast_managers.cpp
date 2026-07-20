@@ -40,6 +40,8 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
+#include <stdexcept>
+#include <string>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/geometry/geometry.h>
@@ -250,11 +252,13 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& pose1,
                                                       const tesseract::common::LinkIdTransformMap& pose2)
 {
+  assert(pose1.size() == pose2.size());
   static_update_.clear();
   dynamic_update_.clear();
   for (const auto& [id, tf1] : pose1)
   {
     auto it2 = pose2.find(id);
+    assert(it2 != pose2.end());
     if (it2 == pose2.end())
       continue;
 
@@ -264,6 +268,47 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
 
     auto reg_it = link2cow_.find(id);
     collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
+  }
+  flushBatchUpdate();
+}
+
+void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<tesseract::common::LinkId>& ids,
+                                                      const tesseract::common::VectorIsometry3d& poses)
+{
+  if (ids.size() != poses.size())
+    throw std::runtime_error("CoalCastBVHManager, setCollisionObjectsTransform received " + std::to_string(ids.size()) +
+                             " ids but " + std::to_string(poses.size()) + " poses!");
+
+  static_update_.clear();
+  dynamic_update_.clear();
+  for (std::size_t i = 0; i < ids.size(); ++i)
+  {
+    auto it = link2cow_.find(ids[i]);
+    if (it != link2cow_.end())
+      collectTransformUpdate(it, poses[i]);
+  }
+  flushBatchUpdate();
+}
+
+void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<tesseract::common::LinkId>& ids,
+                                                      const tesseract::common::VectorIsometry3d& pose1,
+                                                      const tesseract::common::VectorIsometry3d& pose2)
+{
+  if (ids.size() != pose1.size() || ids.size() != pose2.size())
+    throw std::runtime_error("CoalCastBVHManager, setCollisionObjectsTransform received " + std::to_string(ids.size()) +
+                             " ids but " + std::to_string(pose1.size()) + " start poses and " +
+                             std::to_string(pose2.size()) + " end poses!");
+
+  static_update_.clear();
+  dynamic_update_.clear();
+  for (std::size_t i = 0; i < ids.size(); ++i)
+  {
+    auto cast_it = link2castcow_.find(ids[i]);
+    if (cast_it == link2castcow_.end())
+      continue;
+
+    auto reg_it = link2cow_.find(ids[i]);
+    collectCastTransformUpdate(cast_it, reg_it, pose1[i], pose2[i]);
   }
   flushBatchUpdate();
 }

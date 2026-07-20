@@ -92,6 +92,7 @@ add_gtest(${PROJECT_NAME}_coal_utils_shape_conversion_unit coal/coal_utils_shape
 add_gtest(${PROJECT_NAME}_coal_collision_object_wrapper_unit coal/coal_collision_object_wrapper_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_vs_bullet_convex_cast_unit coal/coal_vs_bullet_convex_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_cast_gradient_quality_unit coal/coal_cast_gradient_quality_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_batched_transform_unit coal/coal_batched_transform_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_deferred_octree_expansion_unit coal/coal_deferred_octree_expansion_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_gjk_guess_threshold_unit coal/coal_gjk_guess_threshold_unit.cpp)
 target_link_libraries(${PROJECT_NAME}_coal_gjk_guess_threshold_unit PRIVATE ${PROJECT_NAME}_coal_factories)
