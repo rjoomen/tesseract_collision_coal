@@ -122,10 +122,10 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
   active_start.translation() = Eigen::Vector3d(-2.0, 0.0, 0.0);
   Eigen::Isometry3d active_end = Eigen::Isometry3d::Identity();
   active_end.translation() = Eigen::Vector3d(0.0, 0.0, 0.0);
-  std::vector<tesseract::common::LinkId> names{ "active_cylinder" };
+  std::vector<tesseract::common::LinkId> link_ids{ "active_cylinder" };
   tesseract::common::VectorIsometry3d starts{ active_start };
   tesseract::common::VectorIsometry3d ends{ active_end };
-  checker.setCollisionObjectsTransform(names, starts, ends);
+  checker.setCollisionObjectsTransform(link_ids, starts, ends);
 
   for (ContactTestType type : { ContactTestType::CLOSEST, ContactTestType::ALL })
   {
