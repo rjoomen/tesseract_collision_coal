@@ -162,9 +162,9 @@ inline void runTest(ContinuousContactManager& checker)
   // Set the collision object transforms
   // static_box_link: unit box at origin (identity transform)
   // moving_box_link: 0.25^3 box sweeping from (-1.9, 0, 0) to (1.9, 3.8, 0)
-  std::vector<tesseract::common::LinkId> names = { "static_box_link" };
+  std::vector<tesseract::common::LinkId> link_ids = { "static_box_link" };
   tesseract::common::VectorIsometry3d transforms = { Eigen::Isometry3d::Identity() };
-  checker.setCollisionObjectsTransform(names, transforms);
+  checker.setCollisionObjectsTransform(link_ids, transforms);
 
   tesseract::common::VectorIsometry3d start_poses, end_poses;
   Eigen::Isometry3d start_pos, end_pos;
