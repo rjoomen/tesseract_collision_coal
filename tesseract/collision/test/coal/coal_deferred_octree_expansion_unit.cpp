@@ -7,7 +7,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/common.h>
-#include <tesseract/common/types.h>
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
 
@@ -99,7 +98,7 @@ TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
 {
   // Promote, then demote
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
-  checker_.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{});
+  checker_.setActiveCollisionObjects({});
 
   // Expanded cast COW should be cached — not reverted to raw OcTree.
   const auto& cast_map = checker_.getCastCollisionObjectMap();
@@ -112,7 +111,7 @@ TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
 {
   // Promote -> demote -> re-promote
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
-  checker_.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{});
+  checker_.setActiveCollisionObjects({});
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
 
   const auto& cast_map = checker_.getCastCollisionObjectMap();

@@ -136,7 +136,7 @@ TEST(CoalCachePairUnit, ReregisteredObjectsGiveConsistentResults)  // NOLINT
   ASSERT_EQ(result2_vec.size(), 1);
 
   // Both results should use a canonical link pair ordering for the key,
-  // so the link_names ordering in the result may differ, but the
+  // so the link_ids ordering in the result may differ, but the
   // physical contact data should be identical.
 
   // Find the contact for link_a in each result

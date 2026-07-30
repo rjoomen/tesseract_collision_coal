@@ -83,9 +83,10 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   //////////////////////////////////////
   // Test when object is in collision
   //////////////////////////////////////
-  checker.setActiveCollisionObjects({ "octomap_link", "plane_link" });
+  std::vector<tesseract::common::LinkId> active_links{ "octomap_link", "plane_link" };
+  checker.setActiveCollisionObjects(active_links);
   EXPECT_EQ(checker.getActiveCollisionObjectIds(),
-            (std::unordered_set<tesseract::common::LinkId>{ "octomap_link", "plane_link" }));
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -123,11 +124,11 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
       idx = 1;
 
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 1])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 1])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 2])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 2])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 3])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 3])] = Eigen::Vector3i(255, 0, 0);
   }
 
   tesseract::common::writeSimplePlyFile(

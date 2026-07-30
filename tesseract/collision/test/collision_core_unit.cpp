@@ -1029,7 +1029,7 @@ TEST(TesseractCoreUnit, ContactResultMapCerealUsesStringKeyedWireFormat)  // NOL
 
   ContactResultMap original;
   ContactResult result;
-  result.link_ids = { LinkId("link_a"), LinkId("link_b") };
+  result.link_ids = { "link_a", "link_b" };
   result.distance = 0.05;
   LinkIdPair key(result.link_ids[0], result.link_ids[1]);
   original.addContactResult(key, result);
@@ -1142,7 +1142,7 @@ TEST(TesseractCoreUnit, ContactResultMapCerealLoadsStringKeyedFormatLiteral)  //
   ASSERT_EQ(loaded.size(), 1U);
   const auto& [stored_key, stored_results] = *loaded.getContainer().begin();
   // LinkIdPair key reconstructed from the string names in the JSON literal.
-  EXPECT_EQ(stored_key, LinkIdPair(LinkId("literal_link_x"), LinkId("literal_link_y")));
+  EXPECT_EQ(stored_key, LinkIdPair("literal_link_x", "literal_link_y"));
   ASSERT_EQ(stored_results.size(), 1U);
   EXPECT_EQ(stored_results[0].link_ids[0].name(), "literal_link_x");
   EXPECT_EQ(stored_results[0].link_ids[1].name(), "literal_link_y");
@@ -1160,7 +1160,7 @@ TEST(TesseractCoreUnit, ContactResultMapCerealSaveRejectsInvalidLinkIds)  // NOL
   ContactResultMap result_map;
   // Use addContactResult with a default ContactResult — link_ids are INVALID_LINK_ID, so
   // names are empty.
-  result_map.addContactResult({ LinkId("real_a"), LinkId("real_b") }, ContactResult{});
+  result_map.addContactResult({ "real_a", "real_b" }, ContactResult{});
 
   std::stringstream ss;
   cereal::JSONOutputArchive ar(ss);
@@ -1602,9 +1602,7 @@ TEST(TesseractCoreUnit, ContactTrajectoryResultsUnit)  // NOLINT
     std::vector<tesseract::common::JointId> joint_ids{ "joint1", "joint2", "joint3" };
     tesseract::collision::ContactTrajectoryResults results(joint_ids);
 
-    EXPECT_EQ(results.joint_ids.size(), joint_ids.size());
-    for (std::size_t i = 0; i < joint_ids.size(); ++i)
-      EXPECT_EQ(results.joint_ids[i], joint_ids[i]);
+    EXPECT_EQ(results.joint_ids, joint_ids);
     EXPECT_EQ(results.total_steps, 0);
     EXPECT_EQ(results.steps.size(), 0);
     EXPECT_EQ(results.numSteps(), 0);
@@ -1618,9 +1616,7 @@ TEST(TesseractCoreUnit, ContactTrajectoryResultsUnit)  // NOLINT
 
     tesseract::collision::ContactTrajectoryResults results(joint_ids, num_steps);
 
-    EXPECT_EQ(results.joint_ids.size(), joint_ids.size());
-    for (std::size_t i = 0; i < joint_ids.size(); ++i)
-      EXPECT_EQ(results.joint_ids[i], joint_ids[i]);
+    EXPECT_EQ(results.joint_ids, joint_ids);
     EXPECT_EQ(results.total_steps, num_steps);
     EXPECT_EQ(results.steps.size(), num_steps);
     EXPECT_EQ(results.numSteps(), num_steps);
@@ -2394,8 +2390,6 @@ TEST(TesseractCoreUnit, ContactResultLinkIdsUnit)  // NOLINT
   // Set link_ids and verify retrievable
   result.link_ids[0] = "link_a";
   result.link_ids[1] = "link_b";
-  result.link_ids[0] = "link_a";
-  result.link_ids[1] = "link_b";
   EXPECT_EQ(result.link_ids[0], "link_a");
   EXPECT_EQ(result.link_ids[1], "link_b");
 
@@ -2446,8 +2440,6 @@ TEST(TesseractCoreUnit, ContactResultMapLinkIdPairKeyUnit)  // NOLINT
   tesseract::collision::ContactResult cr;
   cr.link_ids[0] = "link_a";
   cr.link_ids[1] = "link_b";
-  cr.link_ids[0] = "link_a";
-  cr.link_ids[1] = "link_b";
   cr.distance = -0.5;
 
   result_map.addContactResult(key_ab, cr);
@@ -2462,8 +2454,6 @@ TEST(TesseractCoreUnit, ContactResultMapLinkIdPairKeyUnit)  // NOLINT
 
   // setContactResult replaces existing
   tesseract::collision::ContactResult cr2;
-  cr2.link_ids[0] = "link_a";
-  cr2.link_ids[1] = "link_b";
   cr2.link_ids[0] = "link_a";
   cr2.link_ids[1] = "link_b";
   cr2.distance = -1.0;
