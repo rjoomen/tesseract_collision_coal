@@ -7,11 +7,12 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <octomap/octomap.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <unordered_set>
 #include <tesseract/collision/discrete_contact_manager.h>
 #include <tesseract/collision/continuous_contact_manager.h>
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
+
+#include <unordered_set>
 
 namespace tesseract::collision::test_suite
 {

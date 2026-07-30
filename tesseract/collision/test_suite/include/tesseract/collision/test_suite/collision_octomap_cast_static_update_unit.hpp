@@ -111,7 +111,7 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
   checker.setDefaultCollisionMargin(0.0);
 
   checker.setActiveCollisionObjects({ "active_cylinder" });
-  checker.setActiveCollisionObjects(std::vector<tesseract::common::LinkId>{});
+  checker.setActiveCollisionObjects({});
   checker.setActiveCollisionObjects({ "active_cylinder" });
 
   tesseract::common::LinkIdTransformMap static_tf;

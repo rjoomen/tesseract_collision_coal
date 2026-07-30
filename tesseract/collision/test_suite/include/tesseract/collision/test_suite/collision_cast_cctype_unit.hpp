@@ -88,9 +88,9 @@ inline void addCCTypeObjects(ContinuousContactManager& checker)
   ASSERT_TRUE(checker.addCollisionObject("moving_sphere", 7, s2_shapes, s2_poses, true));
 }
 
-/// Derive contact-result slot indices from link_names.
+/// Derive contact-result slot indices from link_ids.
 /// Returns {moving_idx, static_idx, normal_sign}
-/// where normal_sign = +1 if link_names[0]=="moving_sphere", else -1.
+/// where normal_sign = +1 if link_ids[0]=="moving_sphere", else -1.
 inline std::array<int, 3> getSlots(const ContactResult& cr)
 {
   if (cr.link_ids[0] == "moving_sphere")
@@ -185,7 +185,7 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
 
   // Contact normal must have a component along +x (sphere-sphere along X axis)
-  const int ns = slots[2];  // +1 if moving_sphere is link_names[0]
+  const int ns = slots[2];  // +1 if moving_sphere is link_ids[0]
   EXPECT_GT(ns * cr.normal[0], 0.5) << "Contact normal x-component should point from moving_sphere toward "
                                        "static_sphere (+x)";
 
