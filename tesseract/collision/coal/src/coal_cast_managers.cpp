@@ -208,19 +208,6 @@ Eigen::Isometry3d CoalCastBVHManager::getCollisionObjectsTransform(const tessera
   return link2cow_.at(id)->getCollisionObjectsTransform();
 }
 
-void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
-{
-  static_update_.clear();
-  dynamic_update_.clear();
-  for (const auto& [id, tf] : transforms)
-  {
-    auto it = link2cow_.find(id);
-    if (it != link2cow_.end())
-      collectTransformUpdate(it, tf);
-  }
-  flushBatchUpdate();
-}
-
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkId& id,
                                                       const Eigen::Isometry3d& pose)
 {
@@ -232,6 +219,19 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
     collectTransformUpdate(it, pose);
     flushBatchUpdate();
   }
+}
+
+void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
+{
+  static_update_.clear();
+  dynamic_update_.clear();
+  for (const auto& [id, tf] : transforms)
+  {
+    auto it = link2cow_.find(id);
+    if (it != link2cow_.end())
+      collectTransformUpdate(it, tf);
+  }
+  flushBatchUpdate();
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkId& id,
