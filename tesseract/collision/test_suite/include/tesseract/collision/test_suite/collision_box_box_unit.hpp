@@ -1,7 +1,6 @@
 #ifndef TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 #define TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 
-#include <unordered_set>
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
@@ -14,6 +13,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
 #include <tesseract/common/ply_io.h>
+
+#include <unordered_set>
 
 namespace tesseract::collision::test_suite
 {
@@ -93,7 +94,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   /////////////////////////////////////////////
   std::vector<tesseract::common::LinkId> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -111,14 +112,14 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjectIds();
+    const auto& active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
@@ -158,7 +159,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   //////////////////////////////////////
   std::vector<tesseract::common::LinkId> active_links{ "box_link", "second_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);

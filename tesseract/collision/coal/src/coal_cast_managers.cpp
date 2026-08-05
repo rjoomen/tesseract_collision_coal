@@ -334,7 +334,7 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::unordered_set<tess
   updateBroadphaseAndCache();
 }
 
-const std::unordered_set<tesseract::common::LinkId>& CoalCastBVHManager::getActiveCollisionObjectIds() const
+const std::unordered_set<tesseract::common::LinkId>& CoalCastBVHManager::getActiveCollisionObjects() const
 {
   return active_;
 }

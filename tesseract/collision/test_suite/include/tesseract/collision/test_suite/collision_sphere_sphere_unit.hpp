@@ -184,7 +184,7 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
   //////////////////////////////////////
   std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -302,7 +302,7 @@ inline void runTestPrimitiveDistanceDisabled(DiscreteContactManager& checker)
   //////////////////////////////////////
   std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -422,7 +422,7 @@ inline void runTestConvex1(DiscreteContactManager& checker)
   ///////////////////////////////////////////////////////////////////
   std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -502,7 +502,7 @@ inline void runTestConvex2(DiscreteContactManager& checker)
 
   std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -554,7 +554,7 @@ inline void runTestConvex3(DiscreteContactManager& checker)
   //////////////////////////////////////////////////////////////////////
   std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);

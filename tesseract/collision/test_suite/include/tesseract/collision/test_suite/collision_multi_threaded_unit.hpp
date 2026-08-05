@@ -8,13 +8,14 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <unordered_set>
 #include <tesseract/collision/bullet/convex_hull_utils.h>
 #include <tesseract/collision/discrete_contact_manager.h>
 #include <tesseract/collision/common.h>
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
 #include <tesseract/common/ply_io.h>
+
+#include <unordered_set>
 
 namespace tesseract::collision::test_suite
 {
@@ -73,7 +74,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
 
   // Check if they are in collision
   checker.setActiveCollisionObjects(link_ids);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(link_ids.begin(), link_ids.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
