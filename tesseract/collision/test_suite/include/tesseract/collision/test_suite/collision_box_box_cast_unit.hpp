@@ -67,7 +67,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   /////////////////////////////////////////////
   std::vector<tesseract::common::LinkId> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -86,14 +86,14 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjectIds().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjectIds();
+    const auto& active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
@@ -151,7 +151,7 @@ inline void runTest(ContinuousContactManager& checker)
 
   std::vector<tesseract::common::LinkId> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjectIds(),
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
             std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
