@@ -175,11 +175,14 @@ public:
 
   /**
    * @brief Bulk-add collision objects using balanced tree construction.
-   * @param cows Map of collision objects to add
+   * @param cows Collision objects to add. The manager adopts this order: it is the order the
+   *             objects are registered with the broadphase and the order getCollisionObjects()
+   *             reports, so a caller reproducing another manager's contents must supply them in
+   *             that manager's order.
    * @param defer_update When true, skips update()/filter/cache operations — caller is responsible
    *                     for calling setActiveCollisionObjects or similar before querying.
    */
-  void addCollisionObjects(const Link2COW& cows, bool defer_update = false);
+  void addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update = false);
 
   /** @brief Get the cast collision object map (for testing deferred octree expansion) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }

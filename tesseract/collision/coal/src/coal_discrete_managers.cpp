@@ -71,9 +71,10 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
 
   auto manager = std::make_unique<CoalDiscreteBVHManager>(name_, gjk_guess_threshold_);
 
-  Link2COW cloned_cows;
-  for (const auto& [id, cow] : link2cow_)
-    cloned_cows[id] = cow->clone();
+  std::vector<COW::Ptr> cloned_cows;
+  cloned_cows.reserve(collision_objects_.size());
+  for (const auto& id : collision_objects_)
+    cloned_cows.push_back(link2cow_.at(id)->clone());
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
@@ -351,18 +352,18 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   updateBroadphaseAndCache();
 }
 
-void CoalDiscreteBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_update)
+void CoalDiscreteBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update)
 {
   std::vector<coal::CollisionObject*> static_objs;
   std::vector<coal::CollisionObject*> dynamic_objs;
   static_objs.reserve(cows.size());
   dynamic_objs.reserve(cows.size());
 
-  for (const auto& [id, cow] : cows)
+  for (const auto& cow : cows)
   {
     const auto& objects = cow->getCollisionObjects();
     coal_co_count_ += objects.size();
-    link2cow_[id] = cow;
+    link2cow_[cow->getLinkId()] = cow;
     collision_objects_.push_back(cow->getLinkId());
 
     auto& target = (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_objs : dynamic_objs;
