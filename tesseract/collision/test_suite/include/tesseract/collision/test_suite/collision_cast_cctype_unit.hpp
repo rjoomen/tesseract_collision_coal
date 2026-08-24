@@ -139,7 +139,7 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   const auto ki = static_cast<std::size_t>(slots[0]);  // moving_sphere slot
   const auto si = static_cast<std::size_t>(slots[1]);  // static_sphere slot
 
-  SCOPED_TRACE("CCType_Time1 contact: link_names=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
+  SCOPED_TRACE("CCType_Time1 contact: link_ids=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------
@@ -271,7 +271,7 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   const auto ki = static_cast<std::size_t>(slots[0]);
   const auto si = static_cast<std::size_t>(slots[1]);
 
-  SCOPED_TRACE("CCType_Time0 contact: link_names=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
+  SCOPED_TRACE("CCType_Time0 contact: link_ids=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------

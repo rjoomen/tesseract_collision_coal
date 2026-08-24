@@ -201,7 +201,7 @@ inline void runTest(ContinuousContactManager& checker)
 
     // Dump full contact state for context on any failure
     SCOPED_TRACE("Contact[0] state:"
-                 "\n  link_names: [" +
+                 "\n  link_ids: [" +
                  cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                  "]"
                  "\n  distance: " +

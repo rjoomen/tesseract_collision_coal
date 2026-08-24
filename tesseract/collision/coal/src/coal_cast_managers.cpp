@@ -75,9 +75,10 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 
   auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_, d_arc_compensation_);
 
-  Link2COW cloned_cows;
-  for (const auto& [id, cow] : link2cow_)
-    cloned_cows[id] = cow->clone();
+  std::vector<COW::Ptr> cloned_cows;
+  cloned_cows.reserve(collision_objects_.size());
+  for (const auto& id : collision_objects_)
+    cloned_cows.push_back(link2cow_.at(id)->clone());
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
@@ -441,21 +442,22 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   updateBroadphaseAndCache();
 }
 
-void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_update)
+void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update)
 {
   std::vector<coal::CollisionObject*> static_objs;
   std::vector<coal::CollisionObject*> dynamic_objs;
   static_objs.reserve(cows.size());
   dynamic_objs.reserve(cows.size());
 
-  for (const auto& [id, cow] : cows)
+  for (const auto& cow : cows)
   {
+    const auto lid = cow->getLinkId();
     coal_co_count_ += cow->getCollisionObjects().size();
-    link2cow_[id] = cow;
-    collision_objects_.push_back(cow->getLinkId());
+    link2cow_[lid] = cow;
+    collision_objects_.push_back(lid);
 
     const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
-    COW::Ptr& cast_ref = (link2castcow_[id] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+    COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
 
     if (!is_kinematic)
     {
@@ -484,7 +486,7 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
     {
       for (auto& [id, cow_ref] : link2cow_)
       {
-        COW::Ptr& cast_cow = link2castcow_[id];
+        COW::Ptr& cast_cow = link2castcow_.at(id);
         updateCollisionObjectFilters(active_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
       }
     }

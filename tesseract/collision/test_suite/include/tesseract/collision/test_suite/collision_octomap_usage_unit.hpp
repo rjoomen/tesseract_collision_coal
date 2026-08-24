@@ -54,7 +54,7 @@ inline std::size_t getLinkIndex(const ContactResult& cr, const std::string& name
   if (cr.link_ids[1].name() == name)
     return 1;
 
-  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_ids[0] << "', '"
+  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_ids: '" << cr.link_ids[0] << "', '"
                 << cr.link_ids[1] << "')";
   return 0;
 }
